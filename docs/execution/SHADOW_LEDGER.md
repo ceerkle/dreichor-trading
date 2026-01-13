@@ -1,144 +1,163 @@
-# Shadow Ledger Specification
+# Shadow Ledger Specification (v1-final)
 
 ## Purpose
-This document defines the **Shadow Ledger**, a deterministic reference model
-describing what execution outcomes were *allowed* to happen
-given an OrderIntent and known constraints.
+This document defines the **Shadow Ledger**.
 
-The Shadow Ledger exists to:
-- detect execution deviations
-- classify discrepancies
-- support audit and replay
+The Shadow Ledger is a deterministic, derived state that reflects
+**what has happened**, not what was intended or decided.
 
-It does not simulate markets.
-It defines **expectation boundaries**.
+It is the sole source of truth for positions resulting from execution.
 
 ---
 
-## Concept Overview
+## Core Principle
 
-The Shadow Ledger represents a parallel, theoretical ledger that records:
+> The Shadow Ledger derives state exclusively from **ExecutionOutcomes**.
 
-- intended actions
-- allowed execution outcomes
-- invariant constraints
-
-It is evaluated **after execution**, not before.
+It does not reason about intent, strategy, lifecycle, pricing, or budgets.
 
 ---
 
-## Shadow vs. Real Ledger
+## Inputs (v1)
 
-- **Real Ledger**
-  - Records what actually happened
-  - Includes fills, fees, timestamps
+The Shadow Ledger consumes **only** the following inputs:
 
-- **Shadow Ledger**
-  - Records what *could* have happened
-  - Ignores randomness
-  - Uses deterministic rules
+- `ExecutionOutcome`
+- `ExecutionPlane`
 
-The two ledgers are compared, not merged.
+No other inputs are permitted.
+
+OrderIntent is **not** an input.
 
 ---
 
-## Inputs
+## Deterministic Derivation Rule
 
-The Shadow Ledger is derived from:
+The Shadow Ledger is updated by applying ExecutionOutcomes sequentially.
 
-- OrderIntent
-- Execution Plane rules
-- Market constraints (precision, minimums)
-- Known fee models
+```ts
+nextState = applyExecutionOutcome(previousState, executionOutcome)
+```
 
-No live market data is used.
+Rules:
+- Order of outcomes is significant
+- Identical ordered sequences produce identical states
+- No randomness
+- No wall-clock time
 
----
-
-## Allowed Outcomes
-
-For each OrderIntent, the Shadow Ledger defines:
-
-- Allowed fill ranges
-- Allowed partial execution
-- Allowed failure reasons
-
-Anything outside these bounds is a deviation.
+This forms a pure reducer.
 
 ---
 
-## Deviation Classification
+## Shadow Ledger State (v1)
 
-Deviations are classified into categories, such as:
+```ts
+ShadowLedgerState {
+  plane: ExecutionPlane
+  positions: Record<MarketId, Position>
+}
+```
 
-- Latency Deviation
-- Partial Fill Deviation
-- Fee Deviation
-- Precision Deviation
-- Order Rejection Deviation
+### Position (v1)
+
+```ts
+Position {
+  marketId: MarketId
+  quantity: DecimalString
+  isOpen: boolean
+  lastExecutionId: ExecutionId
+}
+```
+
+Notes:
+- Quantity is opaque (no pricing semantics)
+- Only one position per market in v1
+- No partial aggregation logic beyond open/close
+
+---
+
+## Execution Outcome Handling (v1)
+
+### FILLED BUY
+- Create or open a position for the market
+- Set quantity = filledQuantity
+- Set isOpen = true
+
+### FILLED SELL
+- Close the position for the market
+- Set quantity = "0"
+- Set isOpen = false
+
+### FAILED
+- No state change
+
+### PARTIALLY_FILLED
+- Not used in v1
+- MUST NOT change state
+
+---
+
+## Deviation Classes (v1)
 
 Deviation classes are finite and named.
 
----
+```ts
+DeviationClass =
+  | "NONE"
+  | "EXECUTION_FAILED"
+```
 
-## Determinism
+Mapping:
+- FILLED → "NONE"
+- FAILED → "EXECUTION_FAILED"
 
-Given identical inputs, the Shadow Ledger must:
-
-- produce identical allowed outcomes
-- produce identical deviation classifications
-
-Determinism is mandatory.
-
----
-
-## Persistence Rules
-
-The system persists:
-
-- Shadow expectations (compact form)
-- Deviation classification (if any)
-
-Raw execution spam is not stored.
+No other deviations are recognized in v1.
 
 ---
 
-## Interaction with Paper Execution
+## Plane Separation Rule
 
-In the Paper Execution Plane:
+Paper and Live ledgers MUST be strictly separated.
 
-- Shadow Ledger and Real Ledger are expected to align
-- Deviations indicate implementation errors
-
-Any deviation is considered a bug.
-
----
-
-## Interaction with Live Execution
-
-In the Live Execution Plane:
-
-- Deviations are expected
-- Deviations are informational
-- Deviations do not trigger strategy changes
-
-Deviation trends may inform governance.
+Rules:
+- Each ExecutionPlane has its own ShadowLedgerState
+- ExecutionOutcomes from one plane MUST NEVER affect the other
+- Implementations SHOULD use separate state objects or reducers per plane
 
 ---
 
-## Non-Goals
+## Replay Guarantees
+
+- Replaying the same ordered ExecutionOutcomes yields the same ShadowLedgerState
+- Shadow Ledger state is serializable and replayable
+
+---
+
+## Non-Goals (v1)
 
 The Shadow Ledger does not:
-- predict execution quality
-- optimize orders
-- prevent execution
-- influence strategy logic
+- calculate PnL
+- apply fees
+- reason about balances
+- enforce budgets
+- mutate lifecycle or strategy state
+- trigger execution
+
+---
+
+## Error Handling
+
+Invalid ExecutionOutcomes MAY throw structural errors.
+
+Domain-level failures are represented via DeviationClass and state behavior.
 
 ---
 
 ## Closing Rule
 
-Any new execution rule or constraint
-must be reflected in the Shadow Ledger.
+Any extension to Shadow Ledger semantics requires:
+- update to this document
+- version increment
+- review before implementation
 
-No silent divergence is permitted.
+No silent behavior is permitted.
