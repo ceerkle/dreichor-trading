@@ -56,19 +56,96 @@ Exact values are implementation-specific.
 
 ---
 
+## Authoritative Parameter Pools (v1)
+
+The following parameter pools are **authoritative** for version v1.
+
+This list is **closed**.
+Any extension requires a new ADR.
+
+### Pool Catalog
+- **cautious@v1** (DEFAULT)
+- **balanced@v1**
+- **assertive@v1**
+
+Rules:
+- Exactly one pool MUST be marked as default.
+- Pool identifiers are stable and versioned.
+- No implicit pools are allowed.
+
+---
+
+## Formal Parameter Schema (Step 4)
+
+For Step 4, parameters are treated as **opaque configuration values**.
+
+They are **not interpreted**, compared, optimized, or validated semantically at this stage.
+
+All parameter pools MUST conform to the following schema:
+
+StrategyParameterSet {
+  holdTime: DecimalString
+  cooldownTime: DecimalString
+  switchingSensitivity: DecimalString
+  stabilityRequirement: DecimalString
+}
+
+Rules:
+- All keys are mandatory.
+- No additional keys are allowed.
+- All values MUST be valid `DecimalString` values.
+- No units, bounds, or thresholds are interpreted in Step 4.
+
+Boundary enforcement in Step 4 means:
+- Missing key → invalid
+- Unknown key → invalid
+- Invalid type → invalid
+
+It does NOT mean numeric range checking.
+
+---
+
 ## Pool Selection
 
 Pool selection occurs during Evaluation.
 
-Selection inputs may include:
-- current attention state
-- market volatility regime
-- decision memory calibration
+Selection input:
+
+ParameterSelectionContext {
+  requestedPoolId?: string
+}
+
+Selection rules:
+1. If a `requestedPoolId` is provided and valid → select it.
+2. If a `requestedPoolId` is provided but invalid → fallback to default pool.
+3. If no `requestedPoolId` is provided → select default pool.
 
 Rules:
-- Only one pool may be active at a time
-- Pool selection must be explicit
-- Pool changes are part of the Decision output
+- Only one pool may be active at a time.
+- Pool selection must be explicit.
+- No ranking, scoring, or automatic switching is allowed.
+- Pool changes are part of the Decision output.
+
+---
+
+## Parameter Selection Decision (Audit Output)
+
+Every parameter selection MUST be recorded explicitly.
+
+ParameterSelectionDecision {
+  selectedPoolId: string
+  effectiveParameters: StrategyParameterSet
+  rejectedPoolId?: string
+  rejectionReason?: ParameterSelectionRejectionReason
+}
+
+### Rejection Reasons (v1)
+
+The following rejection reasons are authoritative:
+- `UNKNOWN_POOL`
+- `INVALID_SCHEMA`
+
+This set is **closed** for v1.
 
 ---
 
@@ -83,7 +160,7 @@ Edgecases may NOT:
 - exceed pool boundaries
 - persist hidden state
 
-Edgecases are advisory.
+Edgecases are advisory only.
 
 ---
 
