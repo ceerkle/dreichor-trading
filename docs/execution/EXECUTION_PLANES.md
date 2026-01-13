@@ -31,9 +31,47 @@ Execution planes:
 All execution planes must adhere to the following:
 
 - Execution always starts from an OrderIntent
-- Execution outcomes are observable
-- Execution may fail or partially succeed
+- Execution produces exactly one ExecutionOutcome per intent
+- Execution outcomes are observable and persisted
 - Execution never retroactively changes decisions
+- Logical time is provided externally and never advanced by execution
+
+---
+
+## Execution Outcome Model (v1)
+
+Execution produces a single, explicit outcome object.
+
+```ts
+ExecutionOutcome {
+  executionId: UUID
+  orderIntentId: UUID
+  plane: ExecutionPlane
+  status: ExecutionStatus
+  filledQuantity: DecimalString
+  logicalTime: LogicalTime
+  reason?: ExecutionReasonCode
+}
+```
+
+### Execution Status (v1)
+
+```ts
+ExecutionStatus =
+  | "FILLED"
+  | "PARTIALLY_FILLED"
+  | "FAILED"
+```
+
+### Execution Reason Codes (v1)
+
+```ts
+ExecutionReasonCode =
+  | "EXECUTION_NOT_AVAILABLE"
+  | "EXECUTION_REJECTED"
+```
+
+This set is closed for v1.
 
 ---
 
@@ -48,11 +86,22 @@ The Paper plane exists to:
 ### Characteristics
 - Fully deterministic
 - No external I/O
-- Uses deterministic fill rules
 - Uses logical time only
+- No randomness, slippage, or pricing logic
+
+### Deterministic Fill Rule (v1)
+
+Paper execution ALWAYS results in a successful full fill.
+
+Rules:
+- status = FILLED
+- filledQuantity = intent.requestedQuantity
+- reason = undefined
+- No partial fills
+- No failures
 
 ### Guarantees
-- Identical inputs produce identical fills
+- Identical inputs produce identical outcomes
 - Replay produces identical results
 - No hidden randomness
 
@@ -89,8 +138,16 @@ The Live plane exists to:
 - External dependencies
 - Incomplete observability
 
+### Live Execution Stub (v1 Scope)
+
+For Step 6, Live execution is implemented as a stub:
+- No external I/O
+- No exchange SDKs
+- Deterministic success or deterministic failure is permitted
+- Failures MUST include an ExecutionReasonCode
+
 Live execution is the only plane where
-real capital is at risk.
+real capital is at risk in production.
 
 ---
 
