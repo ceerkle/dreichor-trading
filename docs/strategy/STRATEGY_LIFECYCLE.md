@@ -178,17 +178,24 @@ Transitions:
 
 ## Safety Exit (Interrupt)
 
-At any lifecycle stage:
+At any lifecycle stage, a Safety Condition may trigger.
 
-- a Safety Condition may trigger an immediate exit
+### Applicability
+- A Safety Exit results in a Safety Sell **only if an open position exists**.
+- If no position exists, the Safety Condition is recorded, but no lifecycle
+  transition occurs.
 
-Safety Exit rules:
-- overrides all other decisions
-- ignores Hold Time and Cooldown
-- must be executed as soon as possible
+### Safety Exit Rules
+- Overrides all other decisions
+- Ignores Hold Time and Cooldown
+- Must be evaluated as soon as possible
 
-After Safety Exit:
-- → Cooldown
+### Execution Outcome
+- On successful Safety Sell → Cooldown
+- On Safety Sell failure (position remains open) → Holding
+
+Safety execution failures are considered critical incidents and are escalated,
+but lifecycle state transitions remain deterministic.
 
 ---
 
