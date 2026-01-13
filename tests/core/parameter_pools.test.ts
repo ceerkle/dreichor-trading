@@ -33,10 +33,13 @@ describe("Step 4 — Parameter Pool Selection", () => {
     const catalog = {
       ...PARAMETER_POOLS_V1,
       "broken@v1": {
-        holdTime: "1",
-        cooldownTime: "2",
+        id: "broken@v1",
+        version: "v1",
+        allocation: "1",
+        holdTime: 1,
+        cooldownTime: 2,
         switchingSensitivity: "3"
-        // stabilityRequirement missing
+        // stabilityRequirement missing (also missing required fields)
       }
     };
     const decision = selectParameterPool(catalog, DEFAULT_PARAMETER_POOL_ID_V1, {
@@ -51,8 +54,11 @@ describe("Step 4 — Parameter Pool Selection", () => {
     const catalog = {
       ...PARAMETER_POOLS_V1,
       "extra-key@v1": {
-        holdTime: "1",
-        cooldownTime: "2",
+        id: "extra-key@v1",
+        version: "v1",
+        allocation: "1",
+        holdTime: 1,
+        cooldownTime: 2,
         switchingSensitivity: "3",
         stabilityRequirement: "4",
         extra: "5"
@@ -69,8 +75,11 @@ describe("Step 4 — Parameter Pool Selection", () => {
     const catalog = {
       ...PARAMETER_POOLS_V1,
       "wrong-type@v1": {
+        id: "wrong-type@v1",
+        version: "v1",
+        allocation: "1",
         holdTime: 1,
-        cooldownTime: "2",
+        cooldownTime: "2", // should be number
         switchingSensitivity: "3",
         stabilityRequirement: "4"
       }
@@ -86,8 +95,11 @@ describe("Step 4 — Parameter Pool Selection", () => {
     const catalog = {
       ...PARAMETER_POOLS_V1,
       "bad-decimal@v1": {
-        holdTime: "1e5", // exponent notation is invalid for DecimalString
-        cooldownTime: "2",
+        id: "bad-decimal@v1",
+        version: "v1",
+        allocation: "1e5", // exponent notation is invalid for DecimalString
+        holdTime: 1,
+        cooldownTime: 2,
         switchingSensitivity: "3",
         stabilityRequirement: "4"
       }
@@ -104,14 +116,14 @@ describe("Step 4 — Parameter Pool Selection", () => {
     expect(Object.isFrozen(PARAMETER_POOLS_V1["cautious@v1"])).toBe(true);
 
     expect(() => {
-      (PARAMETER_POOLS_V1 as any)["cautious@v1"].holdTime = "999";
+      (PARAMETER_POOLS_V1 as any)["cautious@v1"].holdTime = 999;
     }).toThrow();
   });
 
   it("returns an immutable selection decision and parameter set", () => {
     const decision = selectParameterPoolV1({ requestedPoolId: "assertive@v1" });
     expect(Object.isFrozen(decision)).toBe(true);
-    expect(Object.isFrozen(decision.effectiveParameters)).toBe(true);
+    expect(Object.isFrozen(decision.parameterPool)).toBe(true);
   });
 });
 

@@ -1,31 +1,42 @@
 /**
- * Step 4 — Parameter Pool Selection
+ * Step 4 — Parameter Pool Selection (v1-final)
  *
  * Source of truth:
- * - docs/strategy/PARAMETER_POOLS.md
+ * - docs/strategy/PARAMETER_POOLS.md (v1-final)
  *
  * Constraints (Step 4):
  * - Static pools only (finite, named, versioned)
  * - Deterministic selection (no randomness, no learning, no optimization)
- * - Validation is schema-only (missing key / unknown key / invalid DecimalString)
- * - No semantic interpretation (no range checks, no units, no thresholds)
+ * - Validation is schema-only (missing key / unknown key / invalid type)
+ * - No semantic interpretation outside consuming steps
  */
 
-import { createDecimalString, type DecimalString } from "./value_objects.js";
+import {
+  createDecimalString,
+  createLogicalTime,
+  type DecimalString,
+  type LogicalTime
+} from "./value_objects.js";
 
 /**
- * Formal Parameter Schema (Step 4)
+ * Required Pool Schema (v1)
  *
- * StrategyParameterSet {
- *   holdTime: DecimalString
- *   cooldownTime: DecimalString
+ * ParameterPool {
+ *   id: string
+ *   version: string
+ *   allocation: DecimalString
+ *   holdTime: LogicalTime
+ *   cooldownTime: LogicalTime
  *   switchingSensitivity: DecimalString
  *   stabilityRequirement: DecimalString
  * }
  */
-export type StrategyParameterSet = Readonly<{
-  holdTime: DecimalString;
-  cooldownTime: DecimalString;
+export type ParameterPool = Readonly<{
+  id: string;
+  version: string;
+  allocation: DecimalString;
+  holdTime: LogicalTime;
+  cooldownTime: LogicalTime;
   switchingSensitivity: DecimalString;
   stabilityRequirement: DecimalString;
 }>;
@@ -41,14 +52,17 @@ export type ParameterSelectionRejectionReason = "UNKNOWN_POOL" | "INVALID_SCHEMA
 
 export type ParameterSelectionDecision = Readonly<{
   selectedPoolId: string;
-  effectiveParameters: StrategyParameterSet;
+  parameterPool: ParameterPool;
   rejectedPoolId?: string;
   rejectionReason?: ParameterSelectionRejectionReason;
 }>;
 
 export type ParameterPoolCatalog = Readonly<Record<string, unknown>>;
 
-const STRATEGY_PARAMETER_KEYS = [
+const PARAMETER_POOL_KEYS = [
+  "id",
+  "version",
+  "allocation",
   "holdTime",
   "cooldownTime",
   "switchingSensitivity",
@@ -65,7 +79,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 function freezeDecision(decision: ParameterSelectionDecision): ParameterSelectionDecision {
-  Object.freeze(decision.effectiveParameters);
+  Object.freeze(decision.parameterPool);
   Object.freeze(decision);
   return decision;
 }
@@ -77,26 +91,31 @@ function freezeDecision(decision: ParameterSelectionDecision): ParameterSelectio
  * - Missing key → invalid
  * - Unknown key → invalid
  * - Invalid type → invalid
- * - Invalid DecimalString → invalid
  */
-function tryParseStrategyParameterSet(value: unknown): StrategyParameterSet | null {
+function tryParseParameterPool(value: unknown): ParameterPool | null {
   if (!isPlainObject(value)) return null;
 
   const keys = Object.keys(value).sort();
-  const expected = [...STRATEGY_PARAMETER_KEYS].sort();
+  const expected = [...PARAMETER_POOL_KEYS].sort();
   if (keys.length !== expected.length) return null;
   for (let i = 0; i < expected.length; i++) {
     if (keys[i] !== expected[i]) return null;
   }
 
+  const id = value.id;
+  const version = value.version;
+  const allocation = value.allocation;
   const holdTime = value.holdTime;
   const cooldownTime = value.cooldownTime;
   const switchingSensitivity = value.switchingSensitivity;
   const stabilityRequirement = value.stabilityRequirement;
 
   if (
-    typeof holdTime !== "string" ||
-    typeof cooldownTime !== "string" ||
+    typeof id !== "string" ||
+    typeof version !== "string" ||
+    typeof allocation !== "string" ||
+    typeof holdTime !== "number" ||
+    typeof cooldownTime !== "number" ||
     typeof switchingSensitivity !== "string" ||
     typeof stabilityRequirement !== "string"
   ) {
@@ -105,8 +124,11 @@ function tryParseStrategyParameterSet(value: unknown): StrategyParameterSet | nu
 
   try {
     return Object.freeze({
-      holdTime: createDecimalString(holdTime),
-      cooldownTime: createDecimalString(cooldownTime),
+      id,
+      version,
+      allocation: createDecimalString(allocation),
+      holdTime: createLogicalTime(holdTime),
+      cooldownTime: createLogicalTime(cooldownTime),
       switchingSensitivity: createDecimalString(switchingSensitivity),
       stabilityRequirement: createDecimalString(stabilityRequirement)
     });
@@ -129,7 +151,7 @@ export function selectParameterPool(
   context: ParameterSelectionContext
 ): ParameterSelectionDecision {
   const defaultRaw = catalog[defaultPoolId];
-  const defaultParsed = tryParseStrategyParameterSet(defaultRaw);
+  const defaultParsed = tryParseParameterPool(defaultRaw);
   if (!defaultParsed) {
     throw new Error("Default parameter pool is missing or has an invalid schema");
   }
@@ -138,7 +160,7 @@ export function selectParameterPool(
   if (requested === undefined) {
     return freezeDecision({
       selectedPoolId: defaultPoolId,
-      effectiveParameters: defaultParsed
+      parameterPool: defaultParsed
     });
   }
 
@@ -146,17 +168,17 @@ export function selectParameterPool(
   if (requestedRaw === undefined) {
     return freezeDecision({
       selectedPoolId: defaultPoolId,
-      effectiveParameters: defaultParsed,
+      parameterPool: defaultParsed,
       rejectedPoolId: requested,
       rejectionReason: "UNKNOWN_POOL"
     });
   }
 
-  const requestedParsed = tryParseStrategyParameterSet(requestedRaw);
+  const requestedParsed = tryParseParameterPool(requestedRaw);
   if (!requestedParsed) {
     return freezeDecision({
       selectedPoolId: defaultPoolId,
-      effectiveParameters: defaultParsed,
+      parameterPool: defaultParsed,
       rejectedPoolId: requested,
       rejectionReason: "INVALID_SCHEMA"
     });
@@ -164,7 +186,7 @@ export function selectParameterPool(
 
   return freezeDecision({
     selectedPoolId: requested,
-    effectiveParameters: requestedParsed
+    parameterPool: requestedParsed
   });
 }
 
@@ -174,23 +196,32 @@ export function selectParameterPool(
  * NOTE: Exact DecimalString values are implementation-specific (documented).
  * Step 4 does not interpret these values; they are opaque configuration.
  */
-export const PARAMETER_POOLS_V1: Readonly<Record<string, StrategyParameterSet>> =
+export const PARAMETER_POOLS_V1: Readonly<Record<string, ParameterPool>> =
   Object.freeze({
     "cautious@v1": Object.freeze({
-      holdTime: createDecimalString("10"),
-      cooldownTime: createDecimalString("10"),
+      id: "cautious@v1",
+      version: "v1",
+      allocation: createDecimalString("1"),
+      holdTime: createLogicalTime(10),
+      cooldownTime: createLogicalTime(10),
       switchingSensitivity: createDecimalString("0.25"),
       stabilityRequirement: createDecimalString("0.9")
     }),
     "balanced@v1": Object.freeze({
-      holdTime: createDecimalString("5"),
-      cooldownTime: createDecimalString("5"),
+      id: "balanced@v1",
+      version: "v1",
+      allocation: createDecimalString("1"),
+      holdTime: createLogicalTime(5),
+      cooldownTime: createLogicalTime(5),
       switchingSensitivity: createDecimalString("0.5"),
       stabilityRequirement: createDecimalString("0.75")
     }),
     "assertive@v1": Object.freeze({
-      holdTime: createDecimalString("2"),
-      cooldownTime: createDecimalString("2"),
+      id: "assertive@v1",
+      version: "v1",
+      allocation: createDecimalString("1"),
+      holdTime: createLogicalTime(2),
+      cooldownTime: createLogicalTime(2),
       switchingSensitivity: createDecimalString("0.75"),
       stabilityRequirement: createDecimalString("0.6")
     })
