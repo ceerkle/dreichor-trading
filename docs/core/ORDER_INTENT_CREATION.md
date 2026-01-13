@@ -1,4 +1,4 @@
-# Order Intent Creation (v1)
+# Order Intent Creation (v1-final)
 
 ## Purpose
 This document defines how **OrderIntents** are created.
@@ -39,15 +39,43 @@ OrderIntent Creation does **not**:
 
 ## Inputs (Read-Only)
 
-OrderIntent Creation consumes the following inputs:
+OrderIntent Creation consumes the following immutable inputs:
 
 - **Strategy Lifecycle State**
-- **Attention / Worthiness Decision**
+- **Attention / Worthiness Decision** (gate only)
 - **Selected Parameter Pool**
-- **Safety / Meta Gating Flags**
+- **Target Market Selection**
+- **Safety Gates**
 - **LogicalTime**
 
-All inputs are treated as immutable facts.
+### Target Market Selection (v1)
+
+```ts
+targetMarketId?: MarketId
+```
+
+Rules:
+- BUY intents require `targetMarketId`
+- Missing `targetMarketId` → NoIntent
+
+Attention/Worthiness does NOT select markets.
+
+---
+
+### Safety Gates (v1)
+
+```ts
+SafetyGates {
+  blockBuy: boolean
+  forceSell: boolean
+}
+```
+
+Semantics:
+- `blockBuy === true` forbids BUY
+- `forceSell === true` allows/forces SELL if a position exists
+
+Safety is a gate, not a decision-maker.
 
 ---
 
@@ -88,6 +116,30 @@ Notes:
 
 ---
 
+## NoIntent Structure (v1)
+
+```ts
+NoIntent {
+  type: "NO_INTENT"
+  reason: NoIntentReason
+}
+```
+
+### NoIntentReason (v1, closed set)
+
+```ts
+NoIntentReason =
+  | "LIFECYCLE_BLOCKED"
+  | "ATTENTION_NEGATIVE"
+  | "HOLD_TIME_ACTIVE"
+  | "COOLDOWN_ACTIVE"
+  | "SAFETY_BLOCKED"
+  | "MISSING_TARGET_MARKET"
+  | "PRECONDITIONS_NOT_MET"
+```
+
+---
+
 ## Intent ID Generation
 
 OrderIntent IDs MUST be deterministic.
@@ -109,9 +161,6 @@ Properties:
 - no randomness
 - no wall-clock time
 
-The exact hash/encoding mechanism is implementation-defined,
-but MUST be deterministic.
-
 ---
 
 ## Allocation Value Rule (v1)
@@ -119,8 +168,8 @@ but MUST be deterministic.
 For v1, allocation values are derived as follows:
 
 - BUY intents:
-  - `intent.value` MUST come from the selected Parameter Pool
-  - the value is treated as an opaque allocation amount
+  - `intent.value` MUST be taken from the selected Parameter Pool
+  - specifically: `parameterPool.allocation`
 
 - SELL intents:
   - `intent.value` MUST equal the allocation value of the currently held position
@@ -132,10 +181,10 @@ No budget system is consulted in v1.
 ## Market Selection Rules
 
 ### BUY
-- `marketId` MUST be the market selected by the Attention/Worthiness decision.
+- `marketId` MUST equal `targetMarketId`
 
 ### SELL
-- `marketId` MUST be the market of the currently held position.
+- `marketId` MUST equal the market of the currently held position
 
 Rotation is expressed as:
 1. SELL current market
@@ -149,10 +198,11 @@ No combined BUY+SELL intents are allowed.
 
 A BUY intent MAY be created only if **all** are true:
 
-- Lifecycle state allows entry (e.g. Idle or ReEntryEligible)
-- Attention/Worthiness decision allows entry
+- Lifecycle state allows entry
+- Attention/Worthiness allows entry
+- `targetMarketId` is present
+- SafetyGates.blockBuy is false
 - No open BUY is in progress
-- Safety gating does not block entry
 
 Otherwise, NoIntent MUST be returned.
 
@@ -166,7 +216,7 @@ A SELL intent MAY be created only if **all** are true:
 - Lifecycle state allows exit
 - One of the following applies:
   - Attention/Worthiness recommends rotation
-  - Safety Exit is active
+  - SafetyGates.forceSell is true
 
 Otherwise, NoIntent MUST be returned.
 
@@ -180,7 +230,8 @@ NoIntent MUST be returned if:
 - Hold time has not elapsed
 - Cooldown is active
 - Attention/Worthiness is negative
-- Safety explicitly blocks BUY
+- SafetyGates.blockBuy blocks BUY
+- `targetMarketId` is missing for BUY
 - Preconditions for BUY or SELL are not met
 
 NoIntent is a valid, explicit outcome.
