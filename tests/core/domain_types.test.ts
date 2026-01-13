@@ -14,7 +14,7 @@ import {
   type Position,
   type Strategy,
   type StrategyInstance
-} from "../../src/core/index";
+} from "../../src/core/index.js";
 
 describe("Step 1 — Core Domain Types", () => {
   it("constructs deterministic value objects and serializes stably", () => {

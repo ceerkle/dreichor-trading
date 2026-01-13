@@ -12,7 +12,7 @@ import type {
   LogicalTime,
   ReasonCode,
   UUID
-} from "./value_objects";
+} from "./value_objects.js";
 
 /**
  * NOTE: The documentation references these IDs as opaque identifiers in Step 1,
