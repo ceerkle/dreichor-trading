@@ -7,4 +7,5 @@ export * from "./order_intent_creation.js";
 export * from "./execution_planes.js";
 export * from "./shadow_ledger.js";
 export * from "./safety_model.js";
+export * from "./audit_persistence.js";
 
