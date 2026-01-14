@@ -3,6 +3,13 @@ name: Manual Deploy (Deploy Agent)
 on:
   workflow_dispatch:
     inputs:
+      mode:
+        description: "Execution mode"
+        type: choice
+        required: true
+        options:
+          - deploy
+          - smoke
       environment:
         description: "Target environment"
         type: choice
@@ -24,6 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     env:
+      MODE: ${{ inputs.mode }}
       DEPLOY_ENDPOINT: ${{ secrets.DEPLOY_ENDPOINT }}
       CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
       CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
@@ -34,6 +42,31 @@ jobs:
       RUNTIME_IMAGE: ghcr.io/${{ github.repository }}/runtime:${{ inputs.image_tag }}
 
     steps:
+      - name: Log selected mode and environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "mode=${{ inputs.mode }}"
+          echo "environment=${{ inputs.environment }}"
+          echo "image=${RUNTIME_IMAGE}"
+
+      - name: Validate input combinations (fail fast)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mode="${{ inputs.mode }}"
+          env="${{ inputs.environment }}"
+
+          if [ "${mode}" != "deploy" ] && [ "${mode}" != "smoke" ]; then
+            echo "ERROR: Invalid mode '${mode}'."
+            exit 1
+          fi
+
+          if [ "${mode}" = "smoke" ] && [ "${env}" != "dev" ]; then
+            echo "ERROR: smoke mode is allowed only for environment=dev (got env='${env}')."
+            exit 1
+          fi
+
       - name: Fail fast if required secrets are missing
         shell: bash
         run: |
@@ -147,3 +180,75 @@ jobs:
             console.log("Status validated: container is running with expected image.");
           '
 
+      - name: Stop (POST /v1/stop) — smoke mode only
+        if: ${{ inputs.mode == 'smoke' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          endpoint="${DEPLOY_ENDPOINT%/}"
+          stop_url="${endpoint}/v1/stop"
+
+          cat > stop_request.json <<'JSON'
+          {
+            "container_name": "dreichor-runtime"
+          }
+          JSON
+
+          http_code="$(
+            curl -sS -o stop_response.json -w "%{http_code}" \
+              -X POST "${stop_url}" \
+              -H "Content-Type: application/json" \
+              -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
+              -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
+              --data-binary @stop_request.json
+          )"
+
+          echo "Stop response (raw):"
+          cat stop_response.json || true
+
+          if [ "${http_code}" != "200" ]; then
+            echo "ERROR: Deploy Agent stop returned non-200 (http_code=${http_code})."
+            exit 1
+          fi
+
+          node -e '
+            const fs = require("node:fs");
+            const r = JSON.parse(fs.readFileSync("stop_response.json","utf8"));
+            if (r.status !== "stopped") throw new Error(`unexpected status: ${r.status}`);
+            if (r.container_name !== "dreichor-runtime") throw new Error(`unexpected container_name: ${r.container_name}`);
+            console.log("Stop response validated.");
+          '
+
+      - name: Verify stopped (GET /v1/status) — smoke mode only
+        if: ${{ inputs.mode == 'smoke' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          endpoint="${DEPLOY_ENDPOINT%/}"
+          status_url="${endpoint}/v1/status"
+
+          http_code="$(
+            curl -sS -o status_after_stop.json -w "%{http_code}" \
+              -X GET "${status_url}" \
+              -H "Content-Type: application/json" \
+              -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
+              -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}"
+          )"
+
+          echo "Status after stop (raw):"
+          cat status_after_stop.json || true
+
+          if [ "${http_code}" != "200" ]; then
+            echo "ERROR: Deploy Agent status returned non-200 after stop (http_code=${http_code})."
+            exit 1
+          fi
+
+          node -e '
+            const fs = require("node:fs");
+            const s = JSON.parse(fs.readFileSync("status_after_stop.json","utf8"));
+            if (s.container_name !== "dreichor-runtime") throw new Error(`unexpected container_name: ${s.container_name}`);
+            if (s.running !== false) throw new Error(`container still running after stop: running=${s.running}`);
+            console.log("Status validated: container is stopped (smoke mode).");
+          '
