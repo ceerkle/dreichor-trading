@@ -1,136 +1,157 @@
-# Safety & Risk Model
+# Safety Model Specification (v1-final)
 
 ## Purpose
-This document defines the **safety model** of the system.
+This document defines the **Execution-side Safety Model**.
 
-Safety exists to prevent catastrophic loss and systemic failure.
-It is explicitly **not** a trading strategy.
+The Safety Model enforces hard safety constraints **between OrderIntent creation
+and Execution**, without altering decision logic.
 
-Safety rules override all other behavior.
+It is deterministic, replayable, and IO-free.
 
 ---
 
 ## Core Principle
 
-> When safety triggers, attention, worthiness, and strategy logic are irrelevant.
+> The Safety Model may block or force actions,
+> but it never decides *what* to trade.
 
-Safety decisions are about **risk containment**, not opportunity.
-
----
-
-## Safety Conditions
-
-A **Safety Condition** represents an unacceptable risk state.
-
-Safety Conditions may include:
-- severe adverse price movement
-- market discontinuity
-- loss of market integrity
-- execution anomalies
-- external system instability
-
-Safety Conditions are detected outside strategy logic.
+It only decides **whether** an action is allowed.
 
 ---
 
-## Safety Trigger
+## Inputs (v1)
 
-When a Safety Condition is detected:
+### SafetyEvaluationInput
 
-- a Safety Sell is immediately authorized
-- all other lifecycle rules are bypassed
+```ts
+SafetyEvaluationInput {
+  proposed: OrderIntent | NoIntent
+  ledger: ShadowLedgerState
+  plane: ExecutionPlane
+  gates: SafetyGates
+  logicalTime: LogicalTime
+}
+```
 
-Safety Triggers:
-- ignore Hold Time
-- ignore Cooldown
-- ignore Worthiness
-- ignore Confidence
-
----
-
-## Safety Sell
-
-A Safety Sell is:
-
-- an immediate exit intent
-- mandatory once initiated
-- executed in the active execution plane
-
-A Safety Sell:
-- is not reversible
-- does not wait for better conditions
-- does not attempt optimization
+No other inputs are permitted.
 
 ---
 
-## Priority Rules
+## SafetyGates (v1)
 
-Safety has absolute priority over:
+SafetyGates are explicit Meta-layer controls.
 
-- strategy decisions
-- execution timing preferences
-- user-defined parameters
+```ts
+SafetyGates {
+  haltAll: boolean
+  blockBuy: boolean
+  forceSell: boolean
+}
+```
 
-If safety and strategy conflict,
-safety always wins.
-
----
-
-## Failure Handling
-
-If a Safety Sell execution fails:
-
-- retries are allowed only if explicitly configured
-- failures are escalated to Meta Layer
-- the system must not resume normal trading
-
-Failure to exit safely is a critical incident.
+Semantics:
+- `haltAll`: immediately halts all BUY activity
+- `blockBuy`: blocks BUY intents only
+- `forceSell`: requires flattening of open positions
 
 ---
 
-## Interaction with Lifecycle
+## Output (v1)
 
-Safety may interrupt the lifecycle at any stage:
+### SafetyEvaluationResult
 
-- Idle
-- Evaluation
-- Entry
-- Holding
-- Cooldown
+```ts
+SafetyEvaluationResult =
+  | { type: "ALLOW" }
+  | { type: "BLOCK_BUY"; reason: SafetyReason }
+  | { type: "FORCE_SELL"; reason: SafetyReason }
+  | { type: "HALT"; reason: SafetyReason }
+```
 
-After a successful Safety Sell:
-- the strategy enters Cooldown
-- no immediate re-entry is allowed
+### SafetyReason (closed set, v1)
 
----
-
-## Auditability
-
-Every Safety event must record:
-
-- triggering condition
-- triggering time
-- execution outcome
-- failure classification (if any)
-
-Safety events are always persisted.
+```ts
+SafetyReason =
+  | "HALT_ALL_ACTIVE"
+  | "BUY_BLOCKED"
+  | "FORCE_SELL_ACTIVE"
+  | "POSITION_ALREADY_OPEN"
+```
 
 ---
 
-## Non-Goals
+## Deterministic Rules (v1)
 
-Safety does not:
-- predict market behavior
-- optimize exits
-- adapt strategies
-- generate signals
+Rules are evaluated in order.
+
+### Rule 1 — Global Halt
+If `gates.haltAll === true`:
+- BUY → HALT
+- SELL → ALLOW
+- NoIntent → HALT
+
+Reason: `HALT_ALL_ACTIVE`
+
+---
+
+### Rule 2 — Force Sell
+If `gates.forceSell === true` AND ledger contains an open position:
+- Output → FORCE_SELL
+
+Reason: `FORCE_SELL_ACTIVE`
+
+Notes:
+- FORCE_SELL MAY generate a SELL intent downstream
+- FORCE_SELL MUST NOT occur if no position is open
+
+---
+
+### Rule 3 — Block Buy
+If `gates.blockBuy === true` AND proposed is BUY:
+- Output → BLOCK_BUY
+
+Reason: `BUY_BLOCKED`
+
+---
+
+### Rule 4 — Single Position Invariant
+If proposed is BUY AND ledger already has an open position:
+- Output → BLOCK_BUY
+
+Reason: `POSITION_ALREADY_OPEN`
+
+---
+
+### Rule 5 — Default
+If none of the above apply:
+- Output → ALLOW
+
+---
+
+## Behavior Notes
+
+- Safety never mutates ledger or lifecycle state
+- Safety never executes orders
+- Safety evaluation is pure and replayable
+- SELL is always allowed unless halted globally
+
+---
+
+## Non-Goals (v1)
+
+The Safety Model does not:
+- compute risk metrics
+- evaluate prices or volatility
+- manage budgets or balances
+- retry or schedule actions
 
 ---
 
 ## Closing Rule
 
-Any new Safety Condition or behavior requires:
-- explicit documentation here
-- review before activation
+Any extension to Safety Model behavior requires:
+- update to this document
+- version increment
+- review prior to implementation
 
-No implicit safety logic is permitted.
+No implicit safety behavior is allowed.
