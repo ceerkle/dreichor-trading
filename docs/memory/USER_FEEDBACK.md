@@ -1,140 +1,116 @@
-# User Feedback Model
+# User Feedback Specification (v1-final)
 
 ## Purpose
-This document defines how **user feedback** is captured and applied
-to Decision Memory without introducing bias, control coupling,
-or hidden optimization.
+This document defines how **user feedback is recorded and audited**.
 
-User feedback calibrates behavior.
-It does not direct decisions.
+User feedback is observational input. It does **not** directly influence
+decisions, safety, execution, or parameters.
 
 ---
 
-## Core Principle
+## Core Principles
 
-> The user provides judgment,
-> not commands.
-
-Feedback informs the system about perceived decision quality,
-not desired future actions.
-
----
-
-## Scope
-
-User feedback applies to:
-- decision classes
-- aggregated behavior patterns
-
-User feedback does not apply to:
-- individual trades
-- specific markets
-- parameter values
-- execution outcomes
+- Feedback is explicit and structured
+- Feedback is never interpreted automatically
+- Feedback is append-only and audit-recorded
+- Feedback must reference an existing system artifact
 
 ---
 
-## Feedback Timing
+## UserFeedbackCategory (v1, closed set)
 
-Feedback is:
-- retrospective
-- delayed
-- optional
-
-Immediate feedback at decision time is not allowed,
-to avoid emotional bias.
-
----
-
-## Feedback Types
-
-Feedback is expressed using a finite set of qualitative categories:
-
-- Would Allow Again
-- Too Nervous
-- Too Hesitant
-- Risky but Acceptable
-- Unnecessary
-- Inconclusive
-
-Feedback categories are descriptive, not prescriptive.
+```ts
+UserFeedbackCategory =
+  | "DECISION_QUALITY"
+  | "RISK_COMFORT"
+  | "SYSTEM_BEHAVIOR"
+```
 
 ---
 
-## Feedback Granularity
+## UserFeedbackTarget (v1)
 
-Feedback may be applied to:
-- a single decision class
-- a time-bounded set of decisions
-- a recurring behavioral pattern
+Feedback must target exactly one of the following:
 
-Feedback is never applied to:
-- a single execution detail
-- raw market movement
-
----
-
-## Aggregation Rules
-
-User feedback:
-- is aggregated over time
-- is smoothed to avoid spikes
-- never overrides decision memory alone
-
-Conflicting feedback neutralizes influence.
+```ts
+UserFeedbackTarget =
+  | { type: "DECISION"; decisionId: UUID }
+  | { type: "EXECUTION"; executionId: UUID }
+  | { type: "TIME_WINDOW"; from: LogicalTime; to: LogicalTime }
+```
 
 ---
 
-## Influence Boundaries
+## UserFeedbackRecord (v1)
 
-User feedback may influence:
-- confidence modulation
-- hesitation thresholds
-- stability requirements
-
-User feedback must never:
-- force or block a specific decision
-- modify strategy logic
-- alter safety behavior
-- change parameter pools
-
----
-
-## Abuse Prevention
-
-The system must:
-- ignore extreme outliers
-- detect contradictory patterns
-- require repeated feedback before influence
-
-Feedback is advisory, not authoritative.
+```ts
+UserFeedbackRecord {
+  id: UUID
+  version: 1
+  category: UserFeedbackCategory
+  target: UserFeedbackTarget
+  comment?: string
+  logicalTime: LogicalTime
+}
+```
 
 ---
 
-## Auditability
+## Deterministic ID Rule
 
-For any behavioral change influenced by feedback,
-the system must be able to explain:
+`id` MUST be deterministically derived from:
+- category
+- target
+- logicalTime
 
-- which feedback categories were considered
-- how they were aggregated
-- why they influenced behavior
+No randomness or wall-clock time is permitted.
+
+---
+
+## Audit Event (v1)
+
+User feedback MUST emit an audit event:
+
+```ts
+UserFeedbackRecordedEvent {
+  type: "USER_FEEDBACK_RECORDED"
+  version: 1
+  feedbackId: UUID
+  category: UserFeedbackCategory
+  target: UserFeedbackTarget
+  logicalTime: LogicalTime
+}
+```
+
+---
+
+## Validation Rules (v1)
+
+Feedback MUST be rejected if:
+- target reference does not exist syntactically
+- logicalTime is missing
+- category is not in the closed set
+
+Feedback MUST NOT:
+- modify state
+- trigger actions
+- affect safety or execution
 
 ---
 
 ## Non-Goals
 
-User feedback does not:
-- train a model
-- optimize performance
-- predict markets
-- replace governance
+This layer does not:
+- score feedback
+- aggregate feedback
+- infer confidence or trust
+- modify strategies or parameters
 
 ---
 
 ## Closing Rule
 
-Any new feedback category or effect requires
-explicit documentation here before use.
-
-No implicit feedback handling is allowed.
+Any extension requires:
+- update to this document
+- version increment
+- review before implementation
