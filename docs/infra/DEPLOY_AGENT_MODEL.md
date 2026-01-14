@@ -153,6 +153,66 @@ Used by CI only for verification, never for control.
 
 ---
 
+---
+
+## Stop API (Phase 1.7)
+
+### POST /v1/stop
+
+Purpose:
+Stop and remove the runtime container deterministically.
+Used for smoke deployments and manual shutdowns.
+
+Authentication:
+- Same Cloudflare Access headers as all other endpoints
+- CF-Access-Client-Id
+- CF-Access-Client-Secret
+
+Request JSON:
+
+{
+  container_name: "dreichor-runtime"
+}
+
+Semantics (atomic, server-side):
+
+1. If the container exists:
+   - docker stop <container_name>
+   - docker rm <container_name>
+2. If the container does not exist:
+   - No-op (still success)
+3. No container MUST remain running after this call.
+
+No retries.
+No partial execution.
+No side effects beyond stopping/removing the container.
+
+---
+
+### Success Response
+
+HTTP 200
+
+{
+  status: "stopped",
+  container_name: "dreichor-runtime"
+}
+
+---
+
+### Failure Response
+
+HTTP 4xx or 5xx
+
+{
+  status: "error",
+  reason: "<human readable explanation>"
+}
+
+Any non-200 response MUST be treated as a hard failure by CI.
+
+---
+
 ## Runtime Container Contract
 
 Container Name:
