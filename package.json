@@ -11,8 +11,8 @@
     "start:paper": "node dist/src/runtime/index.js"
   },
   "devDependencies": {
+    "@types/node": "^20.19.29",
     "typescript": "^5.0.0",
     "vitest": "^1.0.0"
   }
 }
-
