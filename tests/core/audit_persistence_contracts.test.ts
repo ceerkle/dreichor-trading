@@ -20,6 +20,18 @@ describe("Step 9 — Audit & Persistence Contracts (v1-final)", () => {
     };
     expect(e.version).toBe(1);
 
+    const f: AuditEvent = {
+      id: createUuid("00000000-0000-0000-0000-00000000a010"),
+      type: "USER_FEEDBACK_RECORDED",
+      version: 1,
+      logicalTime: createLogicalTime(1),
+      createdAtLogical: createLogicalTime(1),
+      feedbackId: createUuid("00000000-0000-0000-0000-00000000a011"),
+      category: "DECISION_QUALITY",
+      target: { type: "DECISION", decisionId: createUuid("00000000-0000-0000-0000-00000000a012") }
+    };
+    expect(f.type).toBe("USER_FEEDBACK_RECORDED");
+
     // Compile-time: AuditSnapshot must accept only documented snapshot types.
     const s: AuditSnapshot = {
       snapshotId: createUuid("00000000-0000-0000-0000-00000000b001"),

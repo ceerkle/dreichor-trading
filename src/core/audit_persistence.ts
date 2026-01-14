@@ -13,6 +13,7 @@ import type { MarketId } from "./domain_types.js";
 import type { ExecutionPlane, ExecutionStatus } from "./execution_planes.js";
 import type { SafetyEvaluationResult } from "./safety_model.js";
 import type { ShadowLedgerPosition } from "./shadow_ledger.js";
+import type { UserFeedbackCategory, UserFeedbackTarget } from "./user_feedback.js";
 
 /**
  * Common Fields (v1)
@@ -79,6 +80,14 @@ export type LedgerUpdatedEvent = AuditBase &
     marketId: MarketId;
   }>;
 
+export type UserFeedbackRecordedEvent = AuditBase &
+  Readonly<{
+    type: "USER_FEEDBACK_RECORDED";
+    feedbackId: UUID;
+    category: UserFeedbackCategory;
+    target: UserFeedbackTarget;
+  }>;
+
 /**
  * AuditEvent (closed union, v1)
  */
@@ -89,7 +98,8 @@ export type AuditEvent =
   | SafetyEvaluatedEvent
   | ExecutionAttemptedEvent
   | ExecutionOutcomeRecordedEvent
-  | LedgerUpdatedEvent;
+  | LedgerUpdatedEvent
+  | UserFeedbackRecordedEvent;
 
 // ---- Snapshots (v1) ----
 

@@ -8,4 +8,5 @@ export * from "./execution_planes.js";
 export * from "./shadow_ledger.js";
 export * from "./safety_model.js";
 export * from "./audit_persistence.js";
+export * from "./user_feedback.js";
 
