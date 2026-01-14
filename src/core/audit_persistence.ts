@@ -35,6 +35,7 @@ export type AuditBase = Readonly<{
 export type DecisionEvaluatedEvent = AuditBase &
   Readonly<{
     type: "DECISION_EVALUATED";
+    decisionId: UUID;
     strategyInstanceId: UUID;
     decisionClass: DecisionClass;
   }>;
@@ -56,12 +57,14 @@ export type OrderIntentSkippedEvent = AuditBase &
 export type SafetyEvaluatedEvent = AuditBase &
   Readonly<{
     type: "SAFETY_EVALUATED";
+    decisionId: UUID;
     result: SafetyEvaluationResult;
   }>;
 
 export type ExecutionAttemptedEvent = AuditBase &
   Readonly<{
     type: "EXECUTION_ATTEMPTED";
+    decisionId: UUID;
     executionId: UUID;
     plane: ExecutionPlane;
   }>;
@@ -69,6 +72,7 @@ export type ExecutionAttemptedEvent = AuditBase &
 export type ExecutionOutcomeRecordedEvent = AuditBase &
   Readonly<{
     type: "EXECUTION_OUTCOME_RECORDED";
+    decisionId: UUID;
     executionId: UUID;
     status: ExecutionStatus;
   }>;

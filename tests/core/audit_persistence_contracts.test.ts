@@ -20,6 +20,18 @@ describe("Step 9 — Audit & Persistence Contracts (v1-final)", () => {
     };
     expect(e.version).toBe(1);
 
+    const d: AuditEvent = {
+      id: createUuid("00000000-0000-0000-0000-00000000a020"),
+      type: "DECISION_EVALUATED",
+      version: 1,
+      logicalTime: createLogicalTime(1),
+      createdAtLogical: createLogicalTime(1),
+      decisionId: createUuid("00000000-0000-0000-0000-00000000a021"),
+      strategyInstanceId: createUuid("00000000-0000-0000-0000-00000000a022"),
+      decisionClass: "memory.contract.test@v1" as any
+    };
+    expect(d.type).toBe("DECISION_EVALUATED");
+
     const f: AuditEvent = {
       id: createUuid("00000000-0000-0000-0000-00000000a010"),
       type: "USER_FEEDBACK_RECORDED",
