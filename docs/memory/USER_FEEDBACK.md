@@ -71,16 +71,11 @@ No randomness or wall-clock time is permitted.
 
 User feedback MUST emit an audit event:
 
-```ts
-UserFeedbackRecordedEvent {
-  type: "USER_FEEDBACK_RECORDED"
-  version: 1
-  feedbackId: UUID
-  category: UserFeedbackCategory
-  target: UserFeedbackTarget
-  logicalTime: LogicalTime
-}
-```
+User feedback recording emits a `UserFeedbackRecordedEvent`
+as defined in `docs/persistence/AUDIT_PERSISTENCE.md`.
+
+This document defines the semantic content of feedback,
+not the audit envelope.
 
 ---
 
