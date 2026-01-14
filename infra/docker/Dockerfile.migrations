@@ -1,0 +1,21 @@
+# syntax=docker/dockerfile:1
+
+# Phase 1.5 database migrations (one-shot).
+#
+# Normative source: docs/infra/DB_MIGRATION_MODEL.md
+#
+# Rules:
+# - Operator-run, manual
+# - Runtime MUST NOT auto-migrate
+# - Uses DATABASE_URL (required) for connectivity
+
+FROM postgres:16.2
+
+WORKDIR /infra
+
+COPY infra/db/migrations /infra/db/migrations
+COPY infra/db/migrate.sh /usr/local/bin/dreichor-migrate
+RUN chmod +x /usr/local/bin/dreichor-migrate
+
+ENTRYPOINT ["/usr/local/bin/dreichor-migrate"]
+

@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:16.2
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  runtime:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.runtime
+    environment:
+      NODE_ENV: ${NODE_ENV}
+      RUNTIME_INSTANCE_ID: ${RUNTIME_INSTANCE_ID}
+      LOGICAL_TIME_SOURCE: ${LOGICAL_TIME_SOURCE}
+      DATABASE_URL: ${DATABASE_URL}
+      PERSISTENCE_MODE: ${PERSISTENCE_MODE}
+      SNAPSHOT_STRATEGY: ${SNAPSHOT_STRATEGY}
+      EXECUTION_PLANE: ${EXECUTION_PLANE}
+      EXCHANGE_PROVIDER: ${EXCHANGE_PROVIDER}
+      SAFETY_MODE: ${SAFETY_MODE}
+      LOG_LEVEL: ${LOG_LEVEL}
+      ENABLE_AUDIT_LOGGING: ${ENABLE_AUDIT_LOGGING}
+    volumes:
+      - audit-events:/var/lib/dreichor/audit-events
+      - snapshots:/var/lib/dreichor/snapshots
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  audit-events:
+  snapshots:
+  postgres-data:
+
