@@ -133,7 +133,17 @@ function deriveDecisionIdV1(input: Readonly<{
   );
 }
 
-function auditBase(logicalTime: LogicalTime, type: string, id: UUID) {
+function auditBase<TType extends AuditEvent["type"]>(
+  logicalTime: LogicalTime,
+  type: TType,
+  id: UUID
+): Readonly<{
+  id: UUID;
+  type: TType;
+  version: 1;
+  logicalTime: LogicalTime;
+  createdAtLogical: LogicalTime;
+}> {
   // createdAtLogical equals logicalTime in v1.
   return Object.freeze({
     id,
