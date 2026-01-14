@@ -64,6 +64,7 @@ AuditEvent =
 ```ts
 DecisionEvaluatedEvent extends AuditBase {
   type: "DECISION_EVALUATED"
+  decisionId: UUID
   strategyInstanceId: UUID
   decisionClass: DecisionClass
 }
@@ -175,6 +176,9 @@ ShadowLedgerSnapshot {
 - IDs must reference previously recorded events or domain entities
 - Snapshots must be derivable from prior events
 - No snapshot may introduce new facts
+
+DecisionEvaluatedEvent is the authoritative source of decisionId.
+All subsequent audit events related to that decision MUST reference the same decisionId.
 
 ---
 
