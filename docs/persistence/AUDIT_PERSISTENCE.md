@@ -52,6 +52,7 @@ AuditEvent =
   | ExecutionAttemptedEvent
   | ExecutionOutcomeRecordedEvent
   | LedgerUpdatedEvent
+  | UserFeedbackRecordedEvent
 ```
 
 ---
@@ -127,6 +128,17 @@ LedgerUpdatedEvent extends AuditBase {
 }
 ```
 
+#### UserFeedbackRecordedEvent
+
+```ts
+UserFeedbackRecordedEvent extends AuditBase {
+  type: "USER_FEEDBACK_RECORDED"
+  feedbackId: UUID
+  category: UserFeedbackCategory
+  target: UserFeedbackTarget
+}
+```
+
 ---
 
 ## Snapshots (v1)
@@ -179,5 +191,7 @@ Any new audit event or snapshot type requires:
 - explicit addition to this document
 - version increment
 - review before implementation
+
+All audit-relevant user feedback MUST be represented as an AuditEvent and MUST conform to AuditBase.
 
 No implicit persistence is allowed.
