@@ -111,6 +111,7 @@ Rules:
 DecisionMemoryState {
   version: 1
   entries: Record<UUID, DecisionMemoryEntry>
+  seenInputIds: Record<UUID, true>
 }
 ```
 
@@ -150,6 +151,17 @@ explicitly contain a `decisionId`.
 
 Events without a `decisionId` MUST be rejected
 (structural error).
+
+---
+
+Idempotence Rule
+
+Decision Memory MUST be idempotent.
+
+An input (AuditEvent or UserFeedbackRecord) is considered already processed
+if its id exists in seenInputIds.
+
+In that case, the reducer MUST return the previous state unchanged.
 
 ---
 
