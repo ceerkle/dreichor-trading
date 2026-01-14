@@ -37,6 +37,8 @@ describe("Step 6 — Execution Planes (Paper / Live)", () => {
     expect(out1).toEqual(out2);
     expect(out1.plane).toBe("PAPER");
     expect(out1.status).toBe("FILLED");
+    expect(out1.side).toBe(intent.side);
+    expect(out1.marketId).toBe(intent.marketId);
     expect(out1.filledQuantity).toBe(intent.intent.value);
     expect(out1.orderIntentId).toBe(intent.id);
     expect(out1.logicalTime).toBe(logicalTime);
@@ -57,6 +59,8 @@ describe("Step 6 — Execution Planes (Paper / Live)", () => {
     const out: ExecutionOutcome = LIVE_EXECUTION_STUB.execute(intent, logicalTime);
     expect(out.plane).toBe("LIVE");
     expect(out.status).toBe("FILLED");
+    expect(out.side).toBe(intent.side);
+    expect(out.marketId).toBe(intent.marketId);
     expect(out.filledQuantity).toBe(intent.intent.value);
     expect(out.reason).toBeUndefined();
   });

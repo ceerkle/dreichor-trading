@@ -18,7 +18,7 @@
 import type { LogicalTime, UUID } from "./value_objects.js";
 import { createUuid } from "./value_objects.js";
 import type { DecimalString } from "./value_objects.js";
-import type { OrderIntent, OrderIntentId } from "./domain_types.js";
+import type { MarketId, OrderIntent, OrderIntentId } from "./domain_types.js";
 
 /**
  * Execution Plane (v1)
@@ -44,6 +44,8 @@ export type ExecutionOutcome = Readonly<{
   orderIntentId: OrderIntentId;
   plane: ExecutionPlane;
   status: ExecutionStatus;
+  side: "BUY" | "SELL";
+  marketId: MarketId;
   filledQuantity: DecimalString;
   logicalTime: LogicalTime;
   reason?: ExecutionReasonCode;
@@ -96,6 +98,8 @@ export const PAPER_EXECUTION: ExecutionPlaneExecutor = Object.freeze({
       orderIntentId: orderIntent.id,
       plane: "PAPER",
       status: "FILLED",
+      side: orderIntent.side,
+      marketId: orderIntent.marketId,
       filledQuantity: orderIntent.intent.value,
       logicalTime
     };
@@ -119,6 +123,8 @@ export const LIVE_EXECUTION_STUB: ExecutionPlaneExecutor = Object.freeze({
       orderIntentId: orderIntent.id,
       plane: "LIVE",
       status: "FILLED",
+      side: orderIntent.side,
+      marketId: orderIntent.marketId,
       filledQuantity: orderIntent.intent.value,
       logicalTime
     };
