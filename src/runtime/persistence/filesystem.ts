@@ -25,8 +25,8 @@ function readNdjsonFile(filePath: string): unknown[] {
   if (!fs.existsSync(filePath)) return [];
   const raw = fs.readFileSync(filePath, "utf8");
   if (raw.trim().length === 0) return [];
-  const lines = raw.split("\n").filter((l) => l.length > 0);
-  return lines.map((l) => JSON.parse(l));
+  const lines = raw.split("\n").filter((l: string) => l.length > 0);
+  return lines.map((l: string) => JSON.parse(l));
 }
 
 export class FilesystemAuditEventStore implements AuditEventStore {
