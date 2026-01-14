@@ -1,150 +1,183 @@
-# Audit & Persistence Model
+# Audit & Persistence Specification (v1-final)
 
 ## Purpose
-This document defines **what is persisted**, **why it is persisted**,
-and **how persistence supports auditability and replay**
-without creating timeline spam.
+This document defines the **audit and persistence contracts** of the system.
 
-Persistence exists for accountability, not analytics.
+It specifies **what must be recorded** to allow deterministic reconstruction,
+debugging, and responsibility tracing.
 
----
-
-## Core Principle
-
-> Persist only what is necessary to explain and reconstruct behavior.
-
-Anything not required for audit or replay must not be stored.
+It does **not** define storage technology, IO, or runtime behavior.
 
 ---
 
-## Persistence Categories
+## Core Principles
 
-The system persists data in the following categories:
-
-1. Material Events
-2. Aggregated Rollups
-3. Periodic Snapshots
-
-Raw streams are not persisted by default.
+- Audit is append-only
+- Events are the source of truth
+- Snapshots are derived, non-authoritative optimizations
+- All types are closed, versioned, and explicit
 
 ---
 
-## Material Events
+## Common Fields (v1)
 
-Material Events represent significant state transitions.
+All audit records share the following fields:
 
-Examples:
-- Decision Made
-- OrderIntent Created
-- OrderIntent Skipped
-- Order Submitted
-- Execution Result
-- Safety Triggered
-- Safety Executed
+```ts
+AuditBase {
+  id: UUID
+  type: string
+  version: 1
+  logicalTime: LogicalTime
+  createdAtLogical: LogicalTime
+}
+```
 
-Material Events must:
-- be immutable
-- include reason codes
-- reference related entities
-
----
-
-## Aggregated Rollups
-
-Rollups summarize high-frequency behavior.
-
-Examples:
-- Market scan summaries
-- Candidate selection summaries
-- Execution health summaries
-
-Rollups:
-- are time-windowed
-- are compact
-- do not store raw observations
-
-Rollups exist to support insight without noise.
+Notes:
+- `createdAtLogical` equals `logicalTime` in v1
+- Wall-clock timestamps are forbidden
 
 ---
 
-## Periodic Snapshots
+## Material Events (v1)
 
-Snapshots capture complete system state at defined intervals.
+### AuditEvent (closed union)
 
-Examples:
-- Strategy Instance State
-- Positions and allocations
-- Decision Memory summaries
-
-Snapshots enable:
-- replay starting points
-- state inspection
-- failure recovery
-
----
-
-## Replay Guarantees
-
-The system must support replay that:
-
-- reconstructs decisions deterministically
-- does not depend on wall-clock time
-- does not rely on inferred intent
-
-Replay uses:
-- material events
-- snapshots
-- deterministic logic
+```ts
+AuditEvent =
+  | DecisionEvaluatedEvent
+  | OrderIntentCreatedEvent
+  | OrderIntentSkippedEvent
+  | SafetyEvaluatedEvent
+  | ExecutionAttemptedEvent
+  | ExecutionOutcomeRecordedEvent
+  | LedgerUpdatedEvent
+```
 
 ---
 
-## Retention Rules
+### Event Definitions
 
-Retention policies must:
-- favor summaries over raw data
-- allow pruning without losing auditability
-- be explicitly defined
+#### DecisionEvaluatedEvent
 
-No implicit data retention is allowed.
+```ts
+DecisionEvaluatedEvent extends AuditBase {
+  type: "DECISION_EVALUATED"
+  strategyInstanceId: UUID
+  decisionClass: DecisionClass
+}
+```
+
+#### OrderIntentCreatedEvent
+
+```ts
+OrderIntentCreatedEvent extends AuditBase {
+  type: "ORDER_INTENT_CREATED"
+  orderIntentId: UUID
+  side: "BUY" | "SELL"
+  marketId: MarketId
+}
+```
+
+#### OrderIntentSkippedEvent
+
+```ts
+OrderIntentSkippedEvent extends AuditBase {
+  type: "ORDER_INTENT_SKIPPED"
+  reason: ReasonCode
+}
+```
+
+#### SafetyEvaluatedEvent
+
+```ts
+SafetyEvaluatedEvent extends AuditBase {
+  type: "SAFETY_EVALUATED"
+  result: SafetyEvaluationResult
+}
+```
+
+#### ExecutionAttemptedEvent
+
+```ts
+ExecutionAttemptedEvent extends AuditBase {
+  type: "EXECUTION_ATTEMPTED"
+  executionId: UUID
+  plane: ExecutionPlane
+}
+```
+
+#### ExecutionOutcomeRecordedEvent
+
+```ts
+ExecutionOutcomeRecordedEvent extends AuditBase {
+  type: "EXECUTION_OUTCOME_RECORDED"
+  executionId: UUID
+  status: ExecutionStatus
+}
+```
+
+#### LedgerUpdatedEvent
+
+```ts
+LedgerUpdatedEvent extends AuditBase {
+  type: "LEDGER_UPDATED"
+  plane: ExecutionPlane
+  marketId: MarketId
+}
+```
 
 ---
 
-## Isolation
+## Snapshots (v1)
 
-Persistence must:
-- not influence runtime decisions
-- not introduce hidden coupling
-- be write-only from decision perspective
+### AuditSnapshot (closed union)
 
-Reading persisted data for decisions is forbidden,
-except via Decision Memory abstractions.
-
----
-
-## Failure Handling
-
-Persistence failures must:
-- be explicit
-- not silently drop material events
-- escalate to Meta Layer
-
-Audit loss is a critical incident.
+```ts
+AuditSnapshot =
+  | ShadowLedgerSnapshot
+```
 
 ---
 
-## Non-Goals
+### ShadowLedgerSnapshot
 
-Persistence does not:
-- provide analytics dashboards
-- support backtesting
-- store tick-by-tick history
-- optimize performance
+```ts
+ShadowLedgerSnapshot {
+  snapshotId: UUID
+  type: "SHADOW_LEDGER_SNAPSHOT"
+  version: 1
+  logicalTime: LogicalTime
+  plane: ExecutionPlane
+  positions: Record<MarketId, Position>
+}
+```
+
+---
+
+## Referential Rules
+
+- IDs must reference previously recorded events or domain entities
+- Snapshots must be derivable from prior events
+- No snapshot may introduce new facts
+
+---
+
+## Non-Goals (v1)
+
+This layer does not:
+- persist budgets
+- record market data ticks
+- store derived metrics
+- implement retention or compaction
 
 ---
 
 ## Closing Rule
 
-Any new persisted data type requires
-explicit documentation here before use.
+Any new audit event or snapshot type requires:
+- explicit addition to this document
+- version increment
+- review before implementation
 
-No silent persistence expansion is permitted.
+No implicit persistence is allowed.
