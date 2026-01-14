@@ -1,0 +1,149 @@
+name: Manual Deploy (Deploy Agent)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        type: choice
+        required: true
+        options:
+          - dev
+          - prod
+      image_tag:
+        description: "Image tag to deploy (immutable SHA or semantic tag, e.g. phase-1.7)"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy runtime via Deploy Agent
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      DEPLOY_ENDPOINT: ${{ secrets.DEPLOY_ENDPOINT }}
+      CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+      CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      CONTAINER_NAME: dreichor-runtime
+      EXECUTION_PLANE: paper
+      RUNTIME_IMAGE: ghcr.io/${{ github.repository }}/runtime:${{ inputs.image_tag }}
+
+    steps:
+      - name: Fail fast if required secrets are missing
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${DEPLOY_ENDPOINT:?Missing secret DEPLOY_ENDPOINT (scoped to GitHub Environment '${{ inputs.environment }}')}"
+          : "${CF_ACCESS_CLIENT_ID:?Missing secret CF_ACCESS_CLIENT_ID (scoped to GitHub Environment '${{ inputs.environment }}')}"
+          : "${CF_ACCESS_CLIENT_SECRET:?Missing secret CF_ACCESS_CLIENT_SECRET (scoped to GitHub Environment '${{ inputs.environment }}')}"
+          : "${DATABASE_URL:?Missing secret DATABASE_URL (scoped to GitHub Environment '${{ inputs.environment }}')}"
+
+      - name: Deploy (POST /v1/deploy)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          endpoint="${DEPLOY_ENDPOINT%/}"
+          deploy_url="${endpoint}/v1/deploy"
+
+          cat > deploy_request.json <<'JSON'
+          {
+            "container_name": "dreichor-runtime",
+            "image": "__IMAGE__",
+            "environment": "__ENV__",
+            "env": {
+              "DATABASE_URL": "__DATABASE_URL__",
+              "EXECUTION_PLANE": "paper"
+            },
+            "volumes": {
+              "dreichor-audit-events": "/var/lib/dreichor/audit-events",
+              "dreichor-snapshots": "/var/lib/dreichor/snapshots"
+            }
+          }
+          JSON
+
+          GITHUB_ENV_INPUT="${{ inputs.environment }}" node -e '
+            const fs = require("node:fs");
+            const req = JSON.parse(fs.readFileSync("deploy_request.json","utf8"));
+            req.image = process.env.RUNTIME_IMAGE;
+            req.environment = process.env.GITHUB_ENV_INPUT;
+            req.env.DATABASE_URL = process.env.DATABASE_URL;
+            fs.writeFileSync("deploy_request.json", JSON.stringify(req, null, 2));
+          '
+
+          echo "Deploy request (sanitized):"
+          node -e '
+            const fs = require("node:fs");
+            const req = JSON.parse(fs.readFileSync("deploy_request.json","utf8"));
+            req.env.DATABASE_URL = "***";
+            console.log(JSON.stringify(req, null, 2));
+          '
+
+          http_code="$(
+            curl -sS -o deploy_response.json -w "%{http_code}" \
+              -X POST "${deploy_url}" \
+              -H "Content-Type: application/json" \
+              -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
+              -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
+              --data-binary @deploy_request.json
+          )"
+
+          echo "Deploy response (raw):"
+          cat deploy_response.json || true
+
+          if [ "${http_code}" != "200" ]; then
+            echo "ERROR: Deploy Agent returned non-200 (http_code=${http_code})."
+            exit 1
+          fi
+
+          GITHUB_ENV_INPUT="${{ inputs.environment }}" node -e '
+            const fs = require("node:fs");
+            const r = JSON.parse(fs.readFileSync("deploy_response.json","utf8"));
+            if (r.status !== "deployed") throw new Error(`unexpected status: ${r.status}`);
+            if (r.container_name !== "dreichor-runtime") throw new Error(`unexpected container_name: ${r.container_name}`);
+            if (r.environment !== process.env.GITHUB_ENV_INPUT) throw new Error(`unexpected environment: ${r.environment}`);
+            if (r.image !== process.env.RUNTIME_IMAGE) throw new Error(`unexpected image: ${r.image}`);
+            console.log("Deploy Agent response validated.");
+          '
+
+      - name: Verify status (GET /v1/status)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          endpoint="${DEPLOY_ENDPOINT%/}"
+          status_url="${endpoint}/v1/status"
+
+          http_code="$(
+            curl -sS -o status_response.json -w "%{http_code}" \
+              -X GET "${status_url}" \
+              -H "Content-Type: application/json" \
+              -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
+              -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}"
+          )"
+
+          echo "Status response (raw):"
+          cat status_response.json || true
+
+          if [ "${http_code}" != "200" ]; then
+            echo "ERROR: Deploy Agent status returned non-200 (http_code=${http_code})."
+            exit 1
+          fi
+
+          node -e '
+            const fs = require("node:fs");
+            const s = JSON.parse(fs.readFileSync("status_response.json","utf8"));
+            if (s.container_name !== "dreichor-runtime") throw new Error(`unexpected container_name: ${s.container_name}`);
+            if (s.running !== true) throw new Error(`container not running: running=${s.running}`);
+            if (s.image !== process.env.RUNTIME_IMAGE) throw new Error(`unexpected image: ${s.image}`);
+            if (typeof s.started_at !== "string" || s.started_at.trim().length === 0) {
+              throw new Error("missing/invalid started_at");
+            }
+            console.log("Status validated: container is running with expected image.");
+          '
+

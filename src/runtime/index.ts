@@ -69,11 +69,11 @@ async function checkPostgresTcpConnectivityOrThrow(databaseUrl: string): Promise
       socket.end();
       resolve();
     });
-    socket.once("error", (err) => {
+    socket.once("error", (err: Error) => {
       clearTimeout(t);
       reject(err);
     });
-    socket.once("close", (hadError) => {
+    socket.once("close", (hadError: boolean) => {
       clearTimeout(t);
       if (hadError) return;
       // If we reached close without error, connect either succeeded (resolved) or ended early; treat as ok.
@@ -152,11 +152,11 @@ async function main(): Promise<void> {
   log("shutdown: complete");
 }
 
-process.on("unhandledRejection", (reason) => {
+process.on("unhandledRejection", (reason: unknown) => {
   console.error("FATAL: unhandledRejection", reason);
   process.exit(1);
 });
-process.on("uncaughtException", (err) => {
+process.on("uncaughtException", (err: Error) => {
   console.error("FATAL: uncaughtException", err);
   process.exit(1);
 });
