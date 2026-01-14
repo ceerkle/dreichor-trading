@@ -1,139 +1,185 @@
-# Decision Memory Specification
+# Decision Memory Specification (v1-final)
 
 ## Purpose
-This document defines how the system records, aggregates, and applies
-**Decision Memory**.
 
-Decision Memory exists to calibrate behavior over time
-without modifying strategy logic.
+Decision Memory is a **read-only, deterministic memory layer**
+that aggregates *what happened* to past decisions.
 
----
+It does **not**:
+- influence decisions
+- optimize parameters
+- enforce policies
+- perform scoring or learning
 
-## Core Principle
-
-> The system remembers decisions,
-> not rules.
-
-Decision Memory influences *how cautious or decisive*
-the system behaves, never *what it decides*.
+Decision Memory exists to make **decision quality observable over time**
+and to serve as an input for **external governance frameworks** (e.g. dreichor).
 
 ---
 
-## Scope
+## Core Principles
 
-Decision Memory applies to:
-- strategy instances
-- decision classes
-- contextual patterns
+- Deterministic
+- Append-only (via reduction)
+- Replayable
+- Observational only
+- No wall-clock time
+- No IO / persistence logic
 
-It does not apply to:
-- individual trades
-- raw price movements
-- parameter values
-
----
-
-## Memory Units
-
-The smallest unit of memory is a **Decision Memory Entry**.
-
-Each entry aggregates:
-- Decision Class
-- Context summary (attention state, stability, confidence)
-- Observed Outcome categories
-- Occurrence count
-
-No raw timelines are stored.
+Decision Memory MUST NOT affect runtime behavior.
 
 ---
 
-## Aggregation Rules
+## Inputs (v1)
 
-Memory entries are:
-- aggregated over time windows
-- merged by Decision Class and context similarity
-- bounded in size
+Decision Memory is derived **exclusively** from:
 
-Aggregation must:
-- smooth out noise
-- ignore isolated events
-- preserve long-term tendencies
+- `AuditEvent` (as defined in `AUDIT_PERSISTENCE.md`)
+- `UserFeedbackRecord` (as defined in `USER_FEEDBACK.md`)
+
+No other inputs are allowed.
 
 ---
 
-## Outcome Categories
+## Decision Memory Entry (v1)
 
-Outcomes are classified into qualitative categories, such as:
+A `DecisionMemoryEntry` represents the accumulated observations
+for exactly one decision.
 
-- Confirmed
-- Premature
-- Unnecessary
-- Risky but Justified
-- Inconclusive
+```ts
+DecisionMemoryEntry {
+  decisionId: UUID
+  decisionClass: DecisionClass
+  firstSeenLogicalTime: LogicalTime
 
-Outcome categories are finite and named.
+  execution: DecisionExecutionSummary
+  safety: DecisionSafetySummary
+  feedback: DecisionFeedbackSummary
+}
+```
 
----
+## Execution Summary (v1)
 
-## Influence Boundaries
+```ts
+DecisionExecutionSummary {
+  executionsObserved: number
+  filledCount: number
+  failedCount: number
+  lastExecutionStatus?: ExecutionStatus
+}
+```
 
-Decision Memory may influence:
-- required stability before acting
-- hesitation thresholds for rotation
-- confidence modulation
-
-Decision Memory must never influence:
-- strategy rules
-- market interpretation logic
-- parameter pool definitions
-- safety behavior
-
----
-
-## Temporal Behavior
-
-Decision Memory effects:
-- apply gradually
-- decay slowly over time
-- never change abruptly
-
-No single outcome may dominate memory.
+Rules:
+- Increment executionsObserved on every ExecutionOutcomeRecordedEvent
+- Increment filledCount if status === “FILLED”
+- Increment failedCount if status === “FAILED”
+- Update lastExecutionStatus deterministically
 
 ---
 
-## Isolation
+## Safety Summary (v1)
 
-Decision Memory is:
-- isolated per strategy instance
-- not shared globally by default
-
-Explicit sharing requires documentation.
-
----
-
-## Auditability
-
-For any decision, the system must be able to explain:
-
-- which memory entries were consulted
-- how they influenced behavior
-- why they did not block or force action
+```ts
+DecisionSafetySummary {
+  evaluationsObserved: number
+  blockedCount: number
+  forcedSellCount: number
+  lastSafetyResult?: SafetyEvaluationResult
+}
+```
 
 ---
 
-## Non-Goals
+## Feedback Summary (v1)
 
-Decision Memory does not:
-- optimize performance
-- predict outcomes
-- replace user judgment
-- self-modify strategies
+```ts
+DecisionFeedbackSummary {
+  feedbackCount: number
+  categories: Record<UserFeedbackCategory, number>
+}
+```
+
+Rules:
+- Increment feedbackCount on every UserFeedbackRecordedEvent
+- Increment the corresponding category counter
+- No weighting, scoring, or interpretation
+
+---
+
+## Decision Memory State (v1)
+
+```ts
+DecisionMemoryState {
+  version: 1
+  entries: Record<UUID, DecisionMemoryEntry>
+}
+```
+
+---
+
+## Reducer (v1)
+
+Decision Memory MUST be built via a deterministic reducer:
+
+```ts
+reduceDecisionMemoryV1(
+  prev: DecisionMemoryState,
+  input: AuditEvent | UserFeedbackRecord
+): DecisionMemoryState
+```
+
+Reduction Rules
+- If the referenced decisionId does not exist:
+    - create a new DecisionMemoryEntry
+- Updates MUST be:
+    - deterministic
+    - idempotent
+    - order-dependent only on logicalTime
+
+No sorting, batching, or heuristics are allowed.
+
+---
+
+Referential Rules
+- All inputs MUST reference an existing decisionId
+- Invalid references MUST throw (structural error)
+- No silent drops
+
+---
+
+Non-Goals
+
+Decision Memory does NOT:
+- compute success rates
+- rank decisions
+- block actions
+- recommend changes
+- alter parameters
+- infer confidence
+
+All interpretation is delegated to external systems.
+
+---
+
+## Relationship to Governance (e.g. dreichor)
+
+Decision Memory is a passive observation layer.
+
+Governance frameworks MAY:
+- read Decision Memory
+- analyze patterns
+- propose actions
+
+They MUST NOT:
+- mutate Decision Memory
+- bypass the audit trail
 
 ---
 
 ## Closing Rule
 
-Any new memory influence or category requires
-explicit documentation here before use.
+Any change to Decision Memory requires:
+- explicit update to this document
+- version increment
+- full replay validation
 
-No implicit learning is allowed.
+Decision Memory MUST remain explainable, bounded, and boring.
