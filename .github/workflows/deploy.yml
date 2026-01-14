@@ -121,8 +121,8 @@ jobs:
             curl -sS -o deploy_response.json -w "%{http_code}" \
               -X POST "${deploy_url}" \
               -H "Content-Type: application/json" \
-              -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
-              -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
+              -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" \
+              -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" \
               --data-binary @deploy_request.json
           )"
 
@@ -156,8 +156,8 @@ jobs:
             curl -sS -o status_response.json -w "%{http_code}" \
               -X GET "${status_url}" \
               -H "Content-Type: application/json" \
-              -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
-              -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}"
+              -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" \
+              -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET"
           )"
 
           echo "Status response (raw):"
@@ -199,8 +199,8 @@ jobs:
             curl -sS -o stop_response.json -w "%{http_code}" \
               -X POST "${stop_url}" \
               -H "Content-Type: application/json" \
-              -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
-              -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
+              -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" \
+              -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" \
               --data-binary @stop_request.json
           )"
 
@@ -233,8 +233,8 @@ jobs:
             curl -sS -o status_after_stop.json -w "%{http_code}" \
               -X GET "${status_url}" \
               -H "Content-Type: application/json" \
-              -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
-              -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}"
+              -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" \
+              -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET"
           )"
 
           echo "Status after stop (raw):"
