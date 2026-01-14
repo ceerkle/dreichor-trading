@@ -131,6 +131,10 @@ Rules:
 - Replaying the same ordered ExecutionOutcomes yields the same ShadowLedgerState
 - Shadow Ledger state is serializable and replayable
 
+In v1, ShadowLedgerState MUST NOT be reconstructed from AuditEvents.
+ShadowLedgerState replay is defined exclusively via ShadowLedgerSnapshot.
+AuditEvents are insufficient to derive ExecutionOutcomes.
+
 ---
 
 ## Non-Goals (v1)
