@@ -144,6 +144,12 @@ Referential Rules
 - Invalid references MUST throw (structural error)
 - No silent drops
 
+All AuditEvents used for Decision Memory aggregation MUST
+explicitly contain a `decisionId`.
+
+Events without a `decisionId` MUST be rejected
+(structural error).
+
 ---
 
 Non-Goals

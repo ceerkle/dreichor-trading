@@ -94,6 +94,7 @@ OrderIntentSkippedEvent extends AuditBase {
 ```ts
 SafetyEvaluatedEvent extends AuditBase {
   type: "SAFETY_EVALUATED"
+  decisionId: UUID
   result: SafetyEvaluationResult
 }
 ```
@@ -103,6 +104,7 @@ SafetyEvaluatedEvent extends AuditBase {
 ```ts
 ExecutionAttemptedEvent extends AuditBase {
   type: "EXECUTION_ATTEMPTED"
+  decisionId: UUID
   executionId: UUID
   plane: ExecutionPlane
 }
@@ -113,6 +115,7 @@ ExecutionAttemptedEvent extends AuditBase {
 ```ts
 ExecutionOutcomeRecordedEvent extends AuditBase {
   type: "EXECUTION_OUTCOME_RECORDED"
+  decisionId: UUID
   executionId: UUID
   status: ExecutionStatus
 }
@@ -193,5 +196,9 @@ Any new audit event or snapshot type requires:
 - review before implementation
 
 All audit-relevant user feedback MUST be represented as an AuditEvent and MUST conform to AuditBase.
+
+All execution- and safety-related audit events MUST reference the originating decisionId.
+This reference MUST be explicit.
+No reverse lookup or inference is permitted.
 
 No implicit persistence is allowed.
