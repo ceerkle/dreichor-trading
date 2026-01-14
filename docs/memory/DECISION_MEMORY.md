@@ -128,14 +128,15 @@ reduceDecisionMemoryV1(
 ```
 
 Reduction Rules
-- If the referenced decisionId does not exist:
-    - create a new DecisionMemoryEntry
-- Updates MUST be:
-    - deterministic
-    - idempotent
-    - order-dependent only on logicalTime
 
-No sorting, batching, or heuristics are allowed.
+- A DecisionMemoryEntry MUST be created ONLY when processing
+  a DecisionEvaluatedEvent.
+- The following fields are initialized from that event:
+  - decisionId
+  - decisionClass
+  - firstSeenLogicalTime
+- All other inputs MUST reference an existing decisionId.
+  If no entry exists, this is a structural error and MUST throw.
 
 ---
 
