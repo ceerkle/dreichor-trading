@@ -1,0 +1,128 @@
+name: Release Tag (auto bump)
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to tag"
+        type: choice
+        required: true
+        options:
+          - develop
+          - main
+      bump:
+        description: "Version increment"
+        type: choice
+        required: true
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-tag-${{ inputs.branch }}
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history + tags)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Compute next tag
+        id: v
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          branch="${{ inputs.branch }}"
+          bump="${{ inputs.bump }}"
+
+          if [ "${branch}" = "develop" ]; then
+            suffix="-dev"
+            pattern='^[0-9]+\.[0-9]+\.[0-9]+-dev$'
+            initial="1.0.0-dev"
+          elif [ "${branch}" = "main" ]; then
+            suffix=""
+            pattern='^[0-9]+\.[0-9]+\.[0-9]+$'
+            initial="1.0.0"
+          else
+            echo "ERROR: unsupported branch '${branch}'"
+            exit 1
+          fi
+
+          last="$(
+            git tag --list \
+              | grep -E "${pattern}" \
+              | sort -V \
+              | tail -n 1 \
+              || true
+          )"
+
+          if [ -z "${last}" ]; then
+            next="${initial}"
+            base="${initial%${suffix}}"
+          else
+            base="${last%${suffix}}"
+            IFS='.' read -r major minor patch <<< "${base}"
+
+            case "${bump}" in
+              major)
+                major=$((major + 1)); minor=0; patch=0
+                ;;
+              minor)
+                minor=$((minor + 1)); patch=0
+                ;;
+              patch)
+                patch=$((patch + 1))
+                ;;
+              *)
+                echo "ERROR: invalid bump '${bump}'"
+                exit 1
+                ;;
+            esac
+
+            next="${major}.${minor}.${patch}${suffix}"
+          fi
+
+          if git rev-parse -q --verify "refs/tags/${next}" >/dev/null; then
+            echo "ERROR: tag already exists: ${next}"
+            exit 1
+          fi
+
+          sha="$(git rev-parse HEAD)"
+          echo "last=${last}" >> "$GITHUB_OUTPUT"
+          echo "next=${next}" >> "$GITHUB_OUTPUT"
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push git tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          next="${{ steps.v.outputs.next }}"
+          sha="${{ steps.v.outputs.sha }}"
+          git tag -a "${next}" -m "Release ${next}" "${sha}"
+          git push origin "refs/tags/${next}"
+
+      - name: Summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "## Release tag created"
+            echo ""
+            echo "- Branch: \`${{ inputs.branch }}\`"
+            echo "- Bump: \`${{ inputs.bump }}\`"
+            echo "- Previous: \`${{ steps.v.outputs.last }}\`"
+            echo "- New tag: \`${{ steps.v.outputs.next }}\`"
+            echo "- Commit: \`${{ steps.v.outputs.sha }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
