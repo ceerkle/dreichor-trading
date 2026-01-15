@@ -1,10 +1,17 @@
-name: CI Build (Runtime Container)
+name: Build (Runtime Container)
 
 on:
-  push:
-    branches:
-      - develop
-      - main
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to build (branch or tag), e.g. main, develop, 1.2.3, 1.2.3-dev"
+        type: string
+        required: true
+        default: "develop"
+      image_tag:
+        description: "GHCR image tag to publish (e.g. 1.2.3 or 1.2.3-dev). Also publishes the commit SHA."
+        type: string
+        required: true
 
 permissions:
   contents: read
@@ -13,7 +20,6 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}/runtime
-  SEMANTIC_TAG: phase-1.7
 
 jobs:
   build-and-push:
@@ -21,6 +27,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -55,4 +63,4 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.SEMANTIC_TAG }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.image_tag }}
