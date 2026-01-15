@@ -1,4 +1,4 @@
-export type ObserverErrorCode = "NOT_IMPLEMENTED" | "UNAUTHORIZED" | "NOT_FOUND";
+export type ObserverErrorCode = "NOT_IMPLEMENTED" | "UNAUTHORIZED" | "NOT_FOUND" | "INTERNAL_ERROR";
 
 export class ObserverError extends Error {
   public readonly code: ObserverErrorCode;
