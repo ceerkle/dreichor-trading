@@ -37,6 +37,13 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      - name: Configure git committer (local)
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
       - name: Compute next tag
         id: v
         shell: bash
