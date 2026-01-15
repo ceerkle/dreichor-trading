@@ -18,7 +18,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-COPY tsconfig.json vitest.config.ts ./
+COPY tsconfig.json tsconfig.build.json vitest.config.ts ./
 COPY src ./src
 COPY tests ./tests
 
