@@ -1,43 +1,41 @@
-# Observer Security and Access Model — Phase 2
+# Security and Access Model — Phase 2
 
 ## Purpose
 
-This document defines the security model for the Phase 2 Observer API.
+This document defines the security and access model for the backend
+during Phase 2 (Read-Only Observability).
 
-The Observer API is strictly read-only and must be accessible only to
-authorized first-party clients (UI, internal tools, CI smoke tests).
+The goal is strict access control with zero ambiguity:
+- no public access
+- no anonymous access
+- no write capabilities
+- no accidental exposure
 
-Security is enforced outside the runtime. The runtime itself remains
-agnostic to identity, users, and sessions.
-
----
-
-## Security Philosophy
-
-### Core Rule
-
-The runtime does NOT authenticate users.
-
-It assumes that any request reaching the Observer API has already passed
-all authentication and authorization checks at the infrastructure layer.
-
-The runtime only performs:
-- structural request validation
-- read-only data access
-- deterministic derivation of state
+Security is enforced at multiple layers.
 
 ---
 
-## Trust Boundary
+## Security Principles
 
-The trust boundary is explicitly defined as:
+1. Default deny
+2. Explicit allow
+3. Zero trust at network boundaries
+4. No implicit roles
+5. Observability is not control
 
-Client  
-→ Cloudflare Access  
-→ Cloudflare Tunnel  
-→ Runtime Observer API  
+All access must be intentional, authenticated, and scoped.
 
-Anything beyond the Cloudflare Tunnel is considered trusted.
+---
+
+## Network Boundary
+
+The backend runtime is not publicly exposed.
+
+All external access flows through:
+- Cloudflare Tunnel
+- Cloudflare Access
+
+There are no open inbound ports on the server.
 
 ---
 
@@ -45,100 +43,151 @@ Anything beyond the Cloudflare Tunnel is considered trusted.
 
 ### Cloudflare Access
 
-Cloudflare Access is the single authentication mechanism.
+All observer endpoints are protected by Cloudflare Access.
 
-Authentication methods may include:
-- Email one-time passcode
-- Identity provider login (future)
+Authentication methods:
+- Email OTP (browser-based access)
+- Service tokens (machine-to-machine, limited use)
 
-The runtime has no knowledge of user identity or session state.
-
----
-
-## Machine-to-Machine Access
-
-Machine clients (CI, automation) authenticate using Cloudflare Access
-Service Tokens.
-
-These tokens are:
-- validated entirely by Cloudflare
-- never decoded or inspected by the runtime
+Unauthenticated requests never reach the runtime.
 
 ---
-
-## Runtime Header Guard
 
 ### Required Headers
 
-All Observer API requests MUST include:
+Requests reaching the backend must include:
 
 - CF-Access-Client-Id
 - CF-Access-Client-Secret
 
-Requests missing either header are rejected with HTTP 401.
-
-### Validation Rules
-
-- Presence-only check
-- No cryptographic verification
-- No audience or scope parsing
-- No user context extraction
-
-This is intentional and enforced by design.
+Requests missing these headers are rejected immediately.
 
 ---
 
 ## Authorization Model
 
-### Observer Scope
+### Phase 2 Authorization Scope
 
-- Single global observer role
-- No per-user permissions
-- No per-endpoint authorization
-- No role hierarchy
+There is exactly one authorization scope in Phase 2:
 
-All authenticated requests have identical read access.
+- OBSERVER (read-only)
 
----
-
-## Endpoint Guarantees
-
-Observer endpoints guarantee that:
-- No state mutation occurs
-- No runtime actions are triggered
-- No ticks are executed
-- No safety gates are altered
-- No persistence writes occur
+No role hierarchy exists.
+No per-user permissions exist.
+No write permissions exist.
 
 ---
 
-## Network Exposure Rules
+### Backend Enforcement
 
-- Observer API is never exposed directly to the public internet
-- All access must go through Cloudflare Tunnel
-- No local port exposure beyond 127.0.0.1
+The backend enforces:
+
+- Mandatory presence of Cloudflare Access headers
+- Read-only endpoints only
+- No mutation paths
+
+Authorization is coarse by design.
+
+---
+
+## Endpoint Exposure Rules
+
+Allowed:
+- GET observer endpoints
+- Derived read-only state
+- Aggregated summaries
+
+Forbidden:
+- POST endpoints (except internal health if needed)
+- Control commands
+- Runtime mutation
+- Persistence writes
+- Configuration changes
+
+Any forbidden request results in rejection.
+
+---
+
+## Internal vs External Access
+
+### Internal Access (localhost)
+
+- Used for health checks
+- Used for deployment verification
+- May bypass Cloudflare Access
+
+Internal access must never be exposed externally.
+
+---
+
+### External Access (via Tunnel)
+
+- Always authenticated
+- Always read-only
+- Always observable
+
+No exceptions.
+
+---
+
+## Secrets Handling
+
+Secrets used by the backend:
+- Cloudflare Access credentials
+- Database credentials (connectivity only)
+- Runtime configuration values
+
+Rules:
+- No secrets are logged
+- No secrets are returned via APIs
+- No secrets are exposed in observer responses
+
+---
+
+## Logging and Audit
+
+Security-relevant events are observable via logs only.
+
+Phase 2 does not introduce:
+- security audit events
+- access logs in persistence
+- user tracking
+
+This is intentional.
+
+---
+
+## Failure Behavior
+
+On any security violation:
+- request is rejected
+- no partial response is returned
+- runtime state is unchanged
+
+Security failures are explicit and visible.
 
 ---
 
 ## Explicit Non-Goals
 
-The Observer API does NOT provide:
-- User management
-- API keys
-- OAuth tokens
-- Session cookies
-- RBAC or ABAC
-- Write or control capabilities
+The following are intentionally excluded:
 
-Any such features require a new phase and explicit security design.
+- Fine-grained RBAC
+- Multi-user permission models
+- Token refresh APIs
+- OAuth flows in backend
+- User management
+- Admin roles
+
+All of the above require a future phase.
 
 ---
 
 ## Phase Constraint
 
-This security model applies exclusively to Phase 2.
+The security model is frozen for Phase 2.
 
-Any future write, control, or governance functionality MUST:
-- introduce a new security document
-- explicitly redefine trust boundaries
-- preserve read-only observer guarantees
+Any change to access scope or permissions requires:
+- a new phase
+- updated threat modeling
+- explicit documentation
