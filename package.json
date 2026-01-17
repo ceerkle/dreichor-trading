@@ -8,7 +8,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
-    "start:paper": "node dist/src/runtime/index.js"
+    "start:paper": "node dist/runtime/index.js"
   },
   "devDependencies": {
     "@types/node": "^20.19.29",
