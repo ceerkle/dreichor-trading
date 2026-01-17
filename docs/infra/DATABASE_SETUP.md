@@ -172,14 +172,26 @@ Hard resets:
 
 ---
 
-## Backups & Observability (Future)
+## Backup & Restore Strategy (Conceptual)
 
-This setup supports:
-- database backups via pg_dump
-- point-in-time recovery
-- integration with monitoring and observability tooling
+Backups are operator-owned and MUST be treated as safety-critical.
 
-These are out of scope for Phase 1.5 and Phase 2, but explicitly supported by design.
+Rules:
+- DEV and PROD backups MUST remain separated
+- Backups MUST NOT be triggered from GitHub Actions
+- A restore MUST always be tested in DEV before any PROD restore is attempted
+
+Conceptual strategy:
+- **Backup**: take regular logical backups via `pg_dump` to a versioned, access-controlled location
+- **Retention**: keep a short retention window for frequent backups + a longer window for periodic snapshots
+- **Restore**:
+  - stop the runtime container
+  - restore into the target environment database
+  - run migrations only if required/compatible with the restored schema state
+  - start the runtime and verify determinism/replay
+
+Note:
+- Point-in-time recovery (PITR) is supported by design (Postgres host service), but implementation details are operator-specific.
 
 ---
 

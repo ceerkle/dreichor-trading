@@ -103,7 +103,7 @@ The Deploy Agent MUST perform exactly:
 2. Stop existing container (if present)
 3. Remove existing container (if present)
 4. Start new container with:
-   - container_name: dreichor-runtime
+   - server-owned container_name (Deploy Agent `CONTAINER_NAME`)
    - injected environment variables
    - volume mounts for audit-events and snapshots
 5. Return success only if the container reaches “running” state
@@ -120,7 +120,7 @@ After POST /v1/deploy returns success:
 1. CI MUST call GET /v1/status
 2. The response MUST satisfy:
    - running == true
-   - container_name == "dreichor-runtime"
+   - container_name is present and matches the Deploy Agent-managed runtime container
    - image matches the requested image
    - started_at is present
 

@@ -44,7 +44,7 @@ No phase may be skipped or reordered.
 
 The runtime MUST validate all required environment variables as defined in:
 
-- infra/.env.schema.md
+- `docs/infra/ENV_SCHEMA.md`
 
 Rules:
 - missing variables → startup failure

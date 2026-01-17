@@ -48,7 +48,7 @@ infra/
 │   └── docker-compose.prod.yml  # Hetzner single-node deployment
 │
 ├── env/
-│   ├── .env.schema.md           # Authoritative env contract (normative)
+│   ├── .env.schema.md           # (planned) env contract location
 │   ├── .env.example             # Safe, non-secret example
 │   └── README.md                # Env rules & forbidden patterns
 │
@@ -117,7 +117,7 @@ If persistence is unavailable, the runtime MUST NOT start.
 All runtime configuration MUST be provided via environment variables.
 
 Rules:
-- `.env.schema.md` is the single source of truth
+- `docs/infra/ENV_SCHEMA.md` is the single source of truth (authoritative env contract)
 - no implicit defaults are allowed
 - missing required variables MUST cause startup failure
 - secrets MUST NOT be committed

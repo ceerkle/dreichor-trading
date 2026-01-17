@@ -1,8 +1,12 @@
-# Deploy Agent Model
+# Deploy Agent Model (Authoritative Contract)
 
 ## Purpose
 
-This document defines the authoritative deploy agent model for the Dreichor system.
+This document defines the **authoritative Deploy Agent contract** for the Dreichor system.
+
+**Source of truth:** the running server-side `agent.js` implementation.
+If this document and the running `agent.js` ever disagree, **the running `agent.js` wins**
+and this document MUST be updated to remove drift.
 
 The deploy agent is the only allowed control plane component that may:
 - start runtime containers
@@ -43,12 +47,12 @@ Each environment runs exactly one deploy agent as a long-running Node.js process
 DEV deploy agent:
 - path: /opt/dreichor/dev/deploy-agent/agent.js
 - bind address: 127.0.0.1
-- port: 3005
+- port: server-defined via `PORT` (commonly 3005)
 
 PROD deploy agent:
 - path: /opt/dreichor/prod/deploy-agent/agent.js
 - bind address: 127.0.0.1
-- port: 3006
+- port: server-defined via `PORT`
 
 Deploy agents are managed via systemd and are not containerized.
 
@@ -70,12 +74,10 @@ The deploy agent trusts requests only if they arrive through Cloudflare.
 
 Authentication is enforced via Cloudflare Access Service Tokens.
 
-Required request headers:
-- CF-Access-Client-Id
-- CF-Access-Client-Secret
-- Content-Type: application/json
+Cloudflare Access Service Tokens are enforced at the Cloudflare edge.
 
-Requests missing these headers must be rejected.
+In-process guard (Deploy Agent):
+- the Deploy Agent only verifies the request arrived via Cloudflare by requiring the `cf-ray` header.
 
 No bearer tokens.
 No SSH.
@@ -89,12 +91,15 @@ The deploy agent is the single owner of runtime container lifecycle.
 
 For each environment, exactly one runtime container exists.
 
-Container naming is environment-specific:
+Container naming is **server-owned** via the Deploy Agent environment variable:
+- `CONTAINER_NAME` (required)
 
-- dev: dreichor-runtime-dev
-- prod: dreichor-runtime-prod
+Rule (hard):
+- DEV and PROD container names MUST NOT collide.
 
-Container names must never collide across environments.
+Recommended convention:
+- dev: `dreichor-runtime-dev`
+- prod: `dreichor-runtime-prod`
 
 ---
 
@@ -120,13 +125,15 @@ Purpose:
 Deploy or replace the runtime container for the target environment.
 
 Request body:
-- image: runtime image reference (required)
-- environment: dev or prod (informational only)
+- `image` (string, required): runtime image reference (`ghcr.io/<owner>/<repo>/runtime:<tag>`)
+- `env` (object, optional): environment variables injected into the runtime container
+- `environment` (string, optional): informational only (echoed back in the response; not used for routing)
 
-The deploy agent does not accept:
-- container name overrides
-- volume overrides
-- runtime behavior overrides
+Fields that are ignored (presently) and MUST NOT be relied on:
+- `container_name` (the server uses `CONTAINER_NAME`)
+- `volumes` (the server uses `AUDIT_EVENTS_PATH` and `SNAPSHOTS_PATH`)
+
+No client-side mechanism is allowed to override server-owned values.
 
 ---
 
@@ -138,9 +145,9 @@ Deploy execution is atomic and server-controlled:
 2. Stop the existing runtime container if present
 3. Remove the existing runtime container if present
 4. Start a new container with:
-   - fixed container name (environment-specific)
-   - fixed volume mounts
-   - server-defined environment variables
+   - server-owned container name (`CONTAINER_NAME`)
+   - server-owned volume mounts (`AUDIT_EVENTS_PATH`, `SNAPSHOTS_PATH`)
+   - runtime environment variables injected from the request body `env` (if provided)
 5. Return success only if the container starts successfully
 
 There are:
@@ -158,7 +165,7 @@ Response fields:
 - status: deployed
 - container_name
 - image
-- environment
+- environment (echoed from request, if provided)
 
 ---
 
@@ -229,17 +236,15 @@ These values must not be overridden by deploy requests.
 
 ## Runtime Environment Injection
 
-The deploy agent injects runtime environment variables that are:
-- defined server-side
-- immutable per environment
+The Deploy Agent can inject runtime environment variables via the `env` object in the deploy request.
 
-GitHub Actions must not inject runtime behavior variables such as:
-- DATABASE_URL
-- EXECUTION_PLANE
-- SAFETY_MODE
-- LOG_LEVEL
+Current implementation notes:
+- The Deploy Agent does NOT merge in additional server-side runtime variables automatically.
+- The Deploy Agent does NOT validate runtime env semantics; it passes key/value pairs through to Docker.
+- `ALLOW_EXECUTION_PLANE` is currently logged at startup but not enforced by the Deploy Agent.
 
-These are server-owned.
+Operational rule:
+- Treat runtime env injection as **runtime-critical**. Missing or invalid variables will crash the container and trigger Docker restart loops (`--restart unless-stopped`).
 
 ---
 
@@ -249,8 +254,9 @@ The deploy agent does not:
 - manage the database
 - run migrations
 - validate schemas
+- validate database connectivity
 
-It only ensures that the runtime container receives the correct DATABASE_URL.
+It only starts/stops the runtime container. Database correctness is verified by the runtime during startup (fail-fast).
 
 ---
 
@@ -289,5 +295,5 @@ Deployment must remain boring, explicit, and auditable.
 ## Status
 
 - Applies to Phase 1.5 and Phase 2
-- Compatible with current deploy agent implementation
+- Compatible with the current deploy agent implementation
 - Required foundation for future controlled execution phases

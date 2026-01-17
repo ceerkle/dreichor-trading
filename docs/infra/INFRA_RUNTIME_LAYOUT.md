@@ -104,7 +104,7 @@ Each environment runs exactly **one deploy agent**:
 | Environment | Path | Port |
 |-----------|------|------|
 | dev | `/opt/dreichor/dev/deploy-agent/agent.js` | 3005 |
-| prod | `/opt/dreichor/prod/deploy-agent/agent.js` | 3006 |
+| prod | `/opt/dreichor/prod/deploy-agent/agent.js` | (server-defined via `PORT`) |
 
 They are managed via `systemd`.
 
@@ -115,7 +115,7 @@ They are managed via `systemd`.
 Deploy agents:
 - own the container name
 - own volume mounts
-- own execution-plane enforcement
+- do NOT enforce execution-plane semantics (paper-only is enforced by the runtime itself)
 - do NOT own runtime logic
 
 ---
@@ -124,7 +124,11 @@ Deploy agents:
 
 ### Naming Convention
 
-Each environment runs **exactly one runtime container**:
+Each environment runs **exactly one runtime container**.
+
+Container names are **server-owned** via Deploy Agent env var `CONTAINER_NAME` and MUST NOT collide across environments.
+
+Recommended convention:
 
 | Environment | Container Name |
 |-----------|----------------|

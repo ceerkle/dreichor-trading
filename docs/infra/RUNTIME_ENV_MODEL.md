@@ -40,17 +40,17 @@ Each environment has:
 
 ### Rule (Hard)
 
-> The runtime environment is defined **on the server**, not in GitHub Actions.
+> The runtime environment is defined **out-of-band** (per environment) and must be stable and reviewable.
 
 GitHub Actions:
 - select **which image** to deploy
-- trigger deploy via the deploy agent
-- MUST NOT define runtime behavior
+- select **which environment** (dev / prod)
+- transport the already-defined per-environment runtime configuration to the Deploy Agent
+- MUST NOT carry ad-hoc, per-run runtime behavior decisions
 
-The server:
-- defines execution behavior
-- defines safety constraints
-- defines persistence and database bindings
+Where the runtime configuration lives (current Phase 1.5 / 2 setup):
+- GitHub Environments (recommended): `secrets.*` + `vars.*` per environment, injected by `.github/workflows/deploy.yml`
+- (Alternatively) server-side configuration if the Deploy Agent is extended to inject server-owned runtime env in the future
 
 ---
 
@@ -110,10 +110,12 @@ Each environment uses its **own database**.
 
 ## Environment Ownership
 
-### Server-Owned (Immutable at Deploy Time)
+### Environment-Owned (Immutable per Environment)
 
-These variables are defined in server-side `.env` files
-and MUST NOT be overridden by deploy requests:
+These variables MUST be stable per environment and MUST NOT be changed implicitly by CI logic.
+
+In the current implementation, they are injected into the runtime container via the Deploy Agent request `env`
+(typically sourced from GitHub Environment secrets/vars).
 
 - `RUNTIME_INSTANCE_ID`
 - `LOGICAL_TIME_SOURCE`
@@ -130,11 +132,14 @@ and MUST NOT be overridden by deploy requests:
 
 ### Deploy-Time Inputs (Allowed)
 
-The deploy agent MAY accept:
-- image reference (immutable tag)
-- environment label (`dev` / `prod`)
+The deploy agent accepts:
+- image reference (immutable tag) (required)
+- `env` object (optional) which is passed through to Docker as `-e KEY="VALUE"` (runtime-critical)
+- environment label (`dev` / `prod`) (optional, informational only)
 
-It MUST NOT accept arbitrary env injection for runtime behavior.
+Implementation note (current):
+- The deploy agent does not validate runtime env semantics; it passes variables through.
+- If runtime-critical variables are missing/invalid, the runtime will fail fast on startup.
 
 ---
 
@@ -158,6 +163,11 @@ No silent fallback.
 A deployment that results in a runtime crash due to invalid env
 is considered a **failed deployment**.
 
+Why this often shows up as a restart loop:
+- The deploy agent starts the container with `--restart unless-stopped`.
+- The runtime performs strict env + persistence validation and exits with a non-zero code on any violation.
+- Docker immediately restarts the container, producing repeated crash logs until configuration is fixed or the container is removed.
+
 ---
 
 ## DEV vs PROD Differences
@@ -167,7 +177,7 @@ is considered a **failed deployment**.
 | Execution plane | paper | paper |
 | Database | dreichor_dev | dreichor_prod |
 | Persistence paths | `/opt/dreichor/dev/...` | `/opt/dreichor/prod/...` |
-| Deploy agent port | 3005 | 3006 |
+| Deploy agent port | (server-defined) | (server-defined) |
 
 ---
 
@@ -175,7 +185,7 @@ is considered a **failed deployment**.
 
 - No dynamic runtime reconfiguration
 - No environment mutation via API
-- No GitHub-managed runtime secrets
+- No ad-hoc per-run runtime secret injection outside the selected environment
 - No shared runtime containers
 
 ---
@@ -199,4 +209,4 @@ It also prevents:
 
 - Phase: 1.5 / 2 compatible
 - Live Execution: **NOT ENABLED**
-- Mutability: **Server-owned only**
+- Mutability: **Environment-owned only**
