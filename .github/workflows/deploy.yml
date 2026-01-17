@@ -36,20 +36,7 @@ jobs:
       DEPLOY_ENDPOINT: ${{ secrets.DEPLOY_ENDPOINT }}
       CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
       CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
       RUNTIME_IMAGE: ghcr.io/${{ github.repository }}/runtime:${{ inputs.image_tag }}
-
-      # Runtime env (environment-owned; stored in GitHub Environment variables)
-      NODE_ENV: ${{ vars.NODE_ENV }}
-      RUNTIME_INSTANCE_ID: ${{ vars.RUNTIME_INSTANCE_ID }}
-      LOGICAL_TIME_SOURCE: ${{ vars.LOGICAL_TIME_SOURCE }}
-      PERSISTENCE_MODE: ${{ vars.PERSISTENCE_MODE }}
-      SNAPSHOT_STRATEGY: ${{ vars.SNAPSHOT_STRATEGY }}
-      EXECUTION_PLANE: ${{ vars.EXECUTION_PLANE }}
-      EXCHANGE_PROVIDER: ${{ vars.EXCHANGE_PROVIDER }}
-      SAFETY_MODE: ${{ vars.SAFETY_MODE }}
-      LOG_LEVEL: ${{ vars.LOG_LEVEL }}
-      ENABLE_AUDIT_LOGGING: ${{ vars.ENABLE_AUDIT_LOGGING }}
 
     steps:
       - name: Log selected mode and environment
@@ -85,17 +72,7 @@ jobs:
           : "${DEPLOY_ENDPOINT:?Missing secret DEPLOY_ENDPOINT}"
           : "${CF_ACCESS_CLIENT_ID:?Missing secret CF_ACCESS_CLIENT_ID}"
           : "${CF_ACCESS_CLIENT_SECRET:?Missing secret CF_ACCESS_CLIENT_SECRET}"
-          : "${DATABASE_URL:?Missing secret DATABASE_URL}"
-          : "${NODE_ENV:?Missing env var NODE_ENV (GitHub Environment variable)}"
-          : "${RUNTIME_INSTANCE_ID:?Missing env var RUNTIME_INSTANCE_ID (GitHub Environment variable)}"
-          : "${LOGICAL_TIME_SOURCE:?Missing env var LOGICAL_TIME_SOURCE (GitHub Environment variable)}"
-          : "${PERSISTENCE_MODE:?Missing env var PERSISTENCE_MODE (GitHub Environment variable)}"
-          : "${SNAPSHOT_STRATEGY:?Missing env var SNAPSHOT_STRATEGY (GitHub Environment variable)}"
-          : "${EXECUTION_PLANE:?Missing env var EXECUTION_PLANE (GitHub Environment variable)}"
-          : "${EXCHANGE_PROVIDER:?Missing env var EXCHANGE_PROVIDER (GitHub Environment variable)}"
-          : "${SAFETY_MODE:?Missing env var SAFETY_MODE (GitHub Environment variable)}"
-          : "${LOG_LEVEL:?Missing env var LOG_LEVEL (GitHub Environment variable)}"
-          : "${ENABLE_AUDIT_LOGGING:?Missing env var ENABLE_AUDIT_LOGGING (GitHub Environment variable)}"
+          : "${RUNTIME_IMAGE:?Missing RUNTIME_IMAGE}"
 
       - name: Deploy (POST /v1/deploy)
         shell: bash
@@ -105,52 +82,15 @@ jobs:
           endpoint="${DEPLOY_ENDPOINT%/}"
           deploy_url="${endpoint}/v1/deploy"
 
-          cat > deploy_request.json <<'JSON'
+          cat > deploy_request.json <<JSON
           {
-            "image": "__IMAGE__",
-            "environment": "__ENV__",
-            "env": {
-              "NODE_ENV": "__NODE_ENV__",
-              "RUNTIME_INSTANCE_ID": "__RUNTIME_INSTANCE_ID__",
-              "LOGICAL_TIME_SOURCE": "__LOGICAL_TIME_SOURCE__",
-              "DATABASE_URL": "__DATABASE_URL__",
-              "PERSISTENCE_MODE": "__PERSISTENCE_MODE__",
-              "SNAPSHOT_STRATEGY": "__SNAPSHOT_STRATEGY__",
-              "EXECUTION_PLANE": "__EXECUTION_PLANE__",
-              "EXCHANGE_PROVIDER": "__EXCHANGE_PROVIDER__",
-              "SAFETY_MODE": "__SAFETY_MODE__",
-              "LOG_LEVEL": "__LOG_LEVEL__",
-              "ENABLE_AUDIT_LOGGING": "__ENABLE_AUDIT_LOGGING__"
-            }
+            "image": "${RUNTIME_IMAGE}",
+            "environment": "${{ inputs.environment }}"
           }
           JSON
 
-          GITHUB_ENV_INPUT="${{ inputs.environment }}" node -e '
-            const fs = require("node:fs");
-            const req = JSON.parse(fs.readFileSync("deploy_request.json","utf8"));
-            req.image = process.env.RUNTIME_IMAGE;
-            req.environment = process.env.GITHUB_ENV_INPUT;
-            req.env.NODE_ENV = process.env.NODE_ENV;
-            req.env.RUNTIME_INSTANCE_ID = process.env.RUNTIME_INSTANCE_ID;
-            req.env.LOGICAL_TIME_SOURCE = process.env.LOGICAL_TIME_SOURCE;
-            req.env.DATABASE_URL = process.env.DATABASE_URL;
-            req.env.PERSISTENCE_MODE = process.env.PERSISTENCE_MODE;
-            req.env.SNAPSHOT_STRATEGY = process.env.SNAPSHOT_STRATEGY;
-            req.env.EXECUTION_PLANE = process.env.EXECUTION_PLANE;
-            req.env.EXCHANGE_PROVIDER = process.env.EXCHANGE_PROVIDER;
-            req.env.SAFETY_MODE = process.env.SAFETY_MODE;
-            req.env.LOG_LEVEL = process.env.LOG_LEVEL;
-            req.env.ENABLE_AUDIT_LOGGING = process.env.ENABLE_AUDIT_LOGGING;
-            fs.writeFileSync("deploy_request.json", JSON.stringify(req, null, 2));
-          '
-
-          echo "Deploy request (sanitized):"
-          node -e '
-            const fs = require("node:fs");
-            const req = JSON.parse(fs.readFileSync("deploy_request.json","utf8"));
-            req.env.DATABASE_URL = "***";
-            console.log(JSON.stringify(req, null, 2));
-          '
+          echo "Deploy request:"
+          cat deploy_request.json
 
           http_code="$(
             curl -sS -o deploy_response.json -w "%{http_code}" \
@@ -173,7 +113,6 @@ jobs:
             const fs = require("node:fs");
             const r = JSON.parse(fs.readFileSync("deploy_response.json","utf8"));
             if (r.status !== "deployed") throw new Error(`unexpected status: ${r.status}`);
-            if (!r.container_name) throw new Error("missing container_name");
             if (r.image !== process.env.RUNTIME_IMAGE) throw new Error(`unexpected image: ${r.image}`);
             console.log("Deploy Agent response validated.");
           '
@@ -206,7 +145,6 @@ jobs:
             const fs = require("node:fs");
             const s = JSON.parse(fs.readFileSync("status_response.json","utf8"));
             if (s.running !== true) throw new Error("container not running");
-            if (!s.container_name) throw new Error("missing container_name");
             if (s.image !== process.env.RUNTIME_IMAGE) throw new Error(`unexpected image: ${s.image}`);
             if (typeof s.started_at !== "string" || s.started_at.trim().length === 0) {
               throw new Error("missing/invalid started_at");
@@ -242,7 +180,6 @@ jobs:
             const fs = require("node:fs");
             const r = JSON.parse(fs.readFileSync("stop_response.json","utf8"));
             if (r.status !== "stopped") throw new Error(`unexpected status: ${r.status}`);
-            if (!r.container_name) throw new Error("missing container_name");
             console.log("Stop response validated.");
           '
 

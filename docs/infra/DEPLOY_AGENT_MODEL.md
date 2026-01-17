@@ -126,12 +126,12 @@ Deploy or replace the runtime container for the target environment.
 
 Request body:
 - `image` (string, required): runtime image reference (`ghcr.io/<owner>/<repo>/runtime:<tag>`)
-- `env` (object, optional): environment variables injected into the runtime container
 - `environment` (string, optional): informational only (echoed back in the response; not used for routing)
 
-Fields that are ignored (presently) and MUST NOT be relied on:
-- `container_name` (the server uses `CONTAINER_NAME`)
-- `volumes` (the server uses `AUDIT_EVENTS_PATH` and `SNAPSHOTS_PATH`)
+Fields that are forbidden and MUST NOT be sent:
+- `env`
+- `container_name`
+- `volumes`
 
 No client-side mechanism is allowed to override server-owned values.
 
@@ -147,7 +147,7 @@ Deploy execution is atomic and server-controlled:
 4. Start a new container with:
    - server-owned container name (`CONTAINER_NAME`)
    - server-owned volume mounts (`AUDIT_EVENTS_PATH`, `SNAPSHOTS_PATH`)
-   - runtime environment variables injected from the request body `env` (if provided)
+   - runtime environment variables loaded from server-side `runtime.env` (see below)
 5. Return success only if the container starts successfully
 
 There are:
@@ -236,12 +236,16 @@ These values must not be overridden by deploy requests.
 
 ## Runtime Environment Injection
 
-The Deploy Agent can inject runtime environment variables via the `env` object in the deploy request.
+The Deploy Agent injects runtime environment variables exclusively from a server-side runtime env file.
 
-Current implementation notes:
-- The Deploy Agent does NOT merge in additional server-side runtime variables automatically.
-- The Deploy Agent does NOT validate runtime env semantics; it passes key/value pairs through to Docker.
-- `ALLOW_EXECUTION_PLANE` is currently logged at startup but not enforced by the Deploy Agent.
+Authoritative paths:
+- dev: `/opt/dreichor/dev/runtime.env`
+- prod: `/opt/dreichor/prod/runtime.env`
+
+Rules:
+- CI must not provide runtime env values
+- Deploy requests must not contain an `env` object
+- the runtime container receives its environment via Docker `--env-file` from the server-side `runtime.env`
 
 Operational rule:
 - Treat runtime env injection as **runtime-critical**. Missing or invalid variables will crash the container and trigger Docker restart loops (`--restart unless-stopped`).

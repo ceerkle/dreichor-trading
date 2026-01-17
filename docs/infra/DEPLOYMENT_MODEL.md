@@ -117,6 +117,12 @@ Rules:
 The authoritative list is:
 - `docs/infra/ENV_SCHEMA.md`
 
+Authority split (Phase 1.5+):
+- CI selects *only* image tag + target environment (dev|prod) and triggers the Deploy Agent
+- the server owns *all* runtime environment variables via server-side `runtime.env`:
+  - dev: `/opt/dreichor/dev/runtime.env`
+  - prod: `/opt/dreichor/prod/runtime.env`
+
 ---
 
 ## Secrets Handling
