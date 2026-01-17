@@ -48,7 +48,7 @@ No step may be skipped or reordered.
 
 The runtime validates all environment variables against:
 
-infra/.env.schema.md
+`docs/infra/ENV_SCHEMA.md`
 
 Rules:
 - every required variable MUST be present

@@ -54,7 +54,7 @@ Migrations and runtime MUST NEVER be the same process.
 
 All migrations live in:
 
-infra/migrations/
+`infra/db/migrations/`
 
 Rules:
 - migrations are plain SQL files
@@ -131,10 +131,20 @@ If a schema change would alter replay semantics:
 
 Database connection details:
 - are provided via environment variables
-- are defined in infra/.env.schema.md
+- are defined in `docs/infra/ENV_SCHEMA.md`
 - MUST be present before migration or runtime start
 
 Missing or invalid configuration MUST fail fast.
+
+---
+
+## Why Migrations Are NOT Run via GitHub Actions
+
+Migrations are operational acts and MUST remain manual because:
+- they mutate persistent state (high-risk)
+- they require explicit operator intent and review
+- GitHub Actions must remain a deployment trigger, not a database orchestrator
+- failures must be handled with human judgment (no retries, no automatic rollback)
 
 ---
 
