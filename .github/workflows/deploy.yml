@@ -39,6 +39,18 @@ jobs:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       RUNTIME_IMAGE: ghcr.io/${{ github.repository }}/runtime:${{ inputs.image_tag }}
 
+      # Runtime env (environment-owned; stored in GitHub Environment variables)
+      NODE_ENV: ${{ vars.NODE_ENV }}
+      RUNTIME_INSTANCE_ID: ${{ vars.RUNTIME_INSTANCE_ID }}
+      LOGICAL_TIME_SOURCE: ${{ vars.LOGICAL_TIME_SOURCE }}
+      PERSISTENCE_MODE: ${{ vars.PERSISTENCE_MODE }}
+      SNAPSHOT_STRATEGY: ${{ vars.SNAPSHOT_STRATEGY }}
+      EXECUTION_PLANE: ${{ vars.EXECUTION_PLANE }}
+      EXCHANGE_PROVIDER: ${{ vars.EXCHANGE_PROVIDER }}
+      SAFETY_MODE: ${{ vars.SAFETY_MODE }}
+      LOG_LEVEL: ${{ vars.LOG_LEVEL }}
+      ENABLE_AUDIT_LOGGING: ${{ vars.ENABLE_AUDIT_LOGGING }}
+
     steps:
       - name: Log selected mode and environment
         shell: bash
@@ -74,6 +86,16 @@ jobs:
           : "${CF_ACCESS_CLIENT_ID:?Missing secret CF_ACCESS_CLIENT_ID}"
           : "${CF_ACCESS_CLIENT_SECRET:?Missing secret CF_ACCESS_CLIENT_SECRET}"
           : "${DATABASE_URL:?Missing secret DATABASE_URL}"
+          : "${NODE_ENV:?Missing env var NODE_ENV (GitHub Environment variable)}"
+          : "${RUNTIME_INSTANCE_ID:?Missing env var RUNTIME_INSTANCE_ID (GitHub Environment variable)}"
+          : "${LOGICAL_TIME_SOURCE:?Missing env var LOGICAL_TIME_SOURCE (GitHub Environment variable)}"
+          : "${PERSISTENCE_MODE:?Missing env var PERSISTENCE_MODE (GitHub Environment variable)}"
+          : "${SNAPSHOT_STRATEGY:?Missing env var SNAPSHOT_STRATEGY (GitHub Environment variable)}"
+          : "${EXECUTION_PLANE:?Missing env var EXECUTION_PLANE (GitHub Environment variable)}"
+          : "${EXCHANGE_PROVIDER:?Missing env var EXCHANGE_PROVIDER (GitHub Environment variable)}"
+          : "${SAFETY_MODE:?Missing env var SAFETY_MODE (GitHub Environment variable)}"
+          : "${LOG_LEVEL:?Missing env var LOG_LEVEL (GitHub Environment variable)}"
+          : "${ENABLE_AUDIT_LOGGING:?Missing env var ENABLE_AUDIT_LOGGING (GitHub Environment variable)}"
 
       - name: Deploy (POST /v1/deploy)
         shell: bash
@@ -88,8 +110,17 @@ jobs:
             "image": "__IMAGE__",
             "environment": "__ENV__",
             "env": {
+              "NODE_ENV": "__NODE_ENV__",
+              "RUNTIME_INSTANCE_ID": "__RUNTIME_INSTANCE_ID__",
+              "LOGICAL_TIME_SOURCE": "__LOGICAL_TIME_SOURCE__",
               "DATABASE_URL": "__DATABASE_URL__",
-              "EXECUTION_PLANE": "paper"
+              "PERSISTENCE_MODE": "__PERSISTENCE_MODE__",
+              "SNAPSHOT_STRATEGY": "__SNAPSHOT_STRATEGY__",
+              "EXECUTION_PLANE": "__EXECUTION_PLANE__",
+              "EXCHANGE_PROVIDER": "__EXCHANGE_PROVIDER__",
+              "SAFETY_MODE": "__SAFETY_MODE__",
+              "LOG_LEVEL": "__LOG_LEVEL__",
+              "ENABLE_AUDIT_LOGGING": "__ENABLE_AUDIT_LOGGING__"
             }
           }
           JSON
@@ -99,7 +130,17 @@ jobs:
             const req = JSON.parse(fs.readFileSync("deploy_request.json","utf8"));
             req.image = process.env.RUNTIME_IMAGE;
             req.environment = process.env.GITHUB_ENV_INPUT;
+            req.env.NODE_ENV = process.env.NODE_ENV;
+            req.env.RUNTIME_INSTANCE_ID = process.env.RUNTIME_INSTANCE_ID;
+            req.env.LOGICAL_TIME_SOURCE = process.env.LOGICAL_TIME_SOURCE;
             req.env.DATABASE_URL = process.env.DATABASE_URL;
+            req.env.PERSISTENCE_MODE = process.env.PERSISTENCE_MODE;
+            req.env.SNAPSHOT_STRATEGY = process.env.SNAPSHOT_STRATEGY;
+            req.env.EXECUTION_PLANE = process.env.EXECUTION_PLANE;
+            req.env.EXCHANGE_PROVIDER = process.env.EXCHANGE_PROVIDER;
+            req.env.SAFETY_MODE = process.env.SAFETY_MODE;
+            req.env.LOG_LEVEL = process.env.LOG_LEVEL;
+            req.env.ENABLE_AUDIT_LOGGING = process.env.ENABLE_AUDIT_LOGGING;
             fs.writeFileSync("deploy_request.json", JSON.stringify(req, null, 2));
           '
 
