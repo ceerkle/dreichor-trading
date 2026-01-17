@@ -151,6 +151,7 @@ app.post("/v1/deploy", (req, res) => {
 docker run -d \
   --name ${name} \
   --restart unless-stopped \
+  --network host \
   --env-file ${runtimeEnvPath} \
   ${volumeFlags} \
   ${image}

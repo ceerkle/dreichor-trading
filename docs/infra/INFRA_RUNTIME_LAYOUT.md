@@ -64,6 +64,7 @@ They are strictly separated at:
 │   │   ├── package.json
 │   │   ├── node_modules/
 │   │   └── .env
+│   ├── runtime.env
 │   ├── volumes/
 │   │   ├── audit-events/
 │   │   └── snapshots/
@@ -75,6 +76,7 @@ They are strictly separated at:
 │   │   ├── package.json
 │   │   ├── node_modules/
 │   │   └── .env
+│   ├── runtime.env
 │   ├── volumes/
 │   │   ├── audit-events/
 │   │   └── snapshots/
@@ -161,6 +163,15 @@ Each runtime container mounts exactly two host directories:
 No other volumes are allowed.
 
 ---
+
+### Restart Behavior (Phase 1.5)
+
+In Phase 1.5, repeated runtime container restarts can be expected and intentional,
+because the runtime may exit cleanly (exit code 0) after completing bootstrap/replay,
+and the container is started with `--restart unless-stopped`.
+
+Authoritative explanation:
+- `docs/infra/RUNTIME_CONTAINER_LIFECYCLE.md`
 
 ## Database (Host Service)
 
