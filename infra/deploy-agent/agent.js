@@ -13,7 +13,6 @@ app.use(express.json());
  * Cloudflare Access header guard
  * ----------------------------------------------------- */
 app.use((req, res, next) => {
-  // Cloudflare injects this header for authenticated requests (optional)
   if (!req.headers["cf-ray"]) {
     return res.status(401).json({ error: "not via cloudflare" });
   }
@@ -36,9 +35,6 @@ const {
  * Runtime env (authoritative, server-side)
  * ----------------------------------------------------- */
 function runtimeEnvFilePath() {
-  // Authoritative layout:
-  // /opt/dreichor/dev/runtime.env
-  // /opt/dreichor/prod/runtime.env
   if (ENVIRONMENT !== "dev" && ENVIRONMENT !== "prod") {
     throw new Error(
       `invalid ENVIRONMENT='${ENVIRONMENT}' (expected 'dev' | 'prod')`
@@ -48,11 +44,21 @@ function runtimeEnvFilePath() {
 }
 
 function requireReadableFile(p) {
-  try {
-    fs.accessSync(p, fs.constants.R_OK);
-  } catch (_) {
-    throw new Error(`runtime env file not readable: ${p}`);
+  fs.accessSync(p, fs.constants.R_OK);
+}
+
+/* -------------------------------------------------------
+ * UI paths (prod only)
+ * ----------------------------------------------------- */
+function uiRootPath() {
+  if (ENVIRONMENT !== "prod") {
+    throw new Error("UI deployment allowed only in prod");
   }
+  return path.join("/opt/dreichor", "prod", "ui");
+}
+
+function ensureDir(p) {
+  fs.mkdirSync(p, { recursive: true });
 }
 
 /* -------------------------------------------------------
@@ -99,13 +105,68 @@ app.get("/health", (req, res) => {
 });
 
 /* -------------------------------------------------------
+ * Static UI deploy (prod only)
+ * ----------------------------------------------------- */
+function deployStaticUI({ image }, res) {
+  try {
+    const root = uiRootPath();
+    const releasesDir = path.join(root, "releases");
+
+    ensureDir(releasesDir);
+
+    const releaseId = new Date().toISOString().replace(/[:.]/g, "-");
+    const releasePath = path.join(releasesDir, releaseId);
+
+    console.log("Deploying UI image:", image);
+    execSync(`docker pull ${image}`, { stdio: "inherit" });
+
+    const containerId = execSync(`docker create ${image}`, {
+      encoding: "utf8"
+    }).trim();
+
+    ensureDir(releasePath);
+    execSync(`docker cp ${containerId}:/app/dist ${releasePath}`, {
+      stdio: "inherit"
+    });
+
+    execSync(`docker rm ${containerId}`, { stdio: "ignore" });
+
+    const currentLink = path.join(root, "current");
+    const rollbackLink = path.join(root, "rollback");
+
+    if (fs.existsSync(currentLink)) {
+      if (fs.existsSync(rollbackLink)) {
+        fs.unlinkSync(rollbackLink);
+      }
+      fs.renameSync(currentLink, rollbackLink);
+    }
+
+    fs.symlinkSync(path.join(releasePath, "dist"), currentLink);
+
+    res.json({
+      component: "ui",
+      image,
+      release: releaseId,
+      path: releasePath,
+      current: true
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      status: "error",
+      reason: err.message
+    });
+  }
+}
+
+/* -------------------------------------------------------
  * Deploy
  * ----------------------------------------------------- */
 app.post("/v1/deploy", (req, res) => {
-  const { image, environment } = req.body || {};
+  const { image, environment, component } = req.body || {};
+  const deployComponent = component || "runtime";
   const name = CONTAINER_NAME;
 
-  // Hard security boundary: CI must not influence runtime behavior.
   if (req.body && typeof req.body === "object") {
     const forbidden = ["env", "container_name", "volumes"].filter(
       (k) => Object.prototype.hasOwnProperty.call(req.body, k)
@@ -128,16 +189,18 @@ app.post("/v1/deploy", (req, res) => {
     });
   }
 
+  if (deployComponent === "ui") {
+    return deployStaticUI({ image, environment }, res);
+  }
+
   try {
     const runtimeEnvPath = runtimeEnvFilePath();
     requireReadableFile(runtimeEnvPath);
 
-    console.log("Deploying image:", image);
+    console.log("Deploying runtime image:", image);
 
-    // Pull image
     execSync(`docker pull ${image}`, { stdio: "inherit" });
 
-    // Stop old container if exists (only after successful pull)
     try {
       execSync(`docker rm -f ${name}`, { stdio: "ignore" });
     } catch (_) {}
