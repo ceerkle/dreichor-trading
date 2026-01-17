@@ -88,8 +88,9 @@ Deployment is manual and operator-triggered.
 The deployment workflow MUST:
 - require explicit environment selection (dev or prod)
 - pull a specific image tag
-- inject required runtime env via the Deploy Agent request (current implementation)
 - trigger start/replace of the runtime container via the Deploy Agent
+- MUST NOT inject runtime configuration (runtime.env is server-owned per environment)
+- MUST NOT validate runtime env vars (validation is performed by the runtime at startup)
 
 The deployment workflow MUST NOT:
 - auto-deploy on push
@@ -120,9 +121,9 @@ Secrets:
 - are never committed
 
 Examples:
-- DATABASE_URL
-- POSTGRES_PASSWORD
-- CLOUDFLARE_TUNNEL_TOKEN
+- DEPLOY_ENDPOINT
+- CF_ACCESS_CLIENT_ID
+- CF_ACCESS_CLIENT_SECRET
 
 Secret rotation is manual.
 

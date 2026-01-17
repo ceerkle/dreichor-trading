@@ -45,12 +45,19 @@ Each environment has:
 GitHub Actions:
 - select **which image** to deploy
 - select **which environment** (dev / prod)
-- transport the already-defined per-environment runtime configuration to the Deploy Agent
+- authenticate and trigger the Deploy Agent
+- MUST NOT transport runtime configuration
 - MUST NOT carry ad-hoc, per-run runtime behavior decisions
 
-Where the runtime configuration lives (current Phase 1.5 / 2 setup):
-- GitHub Environments (recommended): `secrets.*` + `vars.*` per environment, injected by `.github/workflows/deploy.yml`
-- (Alternatively) server-side configuration if the Deploy Agent is extended to inject server-owned runtime env in the future
+Where the runtime configuration lives (authoritative server setup):
+- dev: `/opt/dreichor/dev/runtime.env`
+- prod: `/opt/dreichor/prod/runtime.env`
+
+The runtime container receives its environment exclusively via Docker `--env-file`
+from the server-side `runtime.env`.
+
+CI MUST NOT validate runtime env completeness. Runtime validation is performed by the runtime
+itself during startup (strict fail-fast).
 
 ---
 
@@ -114,8 +121,8 @@ Each environment uses its **own database**.
 
 These variables MUST be stable per environment and MUST NOT be changed implicitly by CI logic.
 
-In the current implementation, they are injected into the runtime container via the Deploy Agent request `env`
-(typically sourced from GitHub Environment secrets/vars).
+In the current implementation, they are defined in the environment’s server-side `runtime.env`
+and injected into the container via Docker `--env-file`.
 
 - `RUNTIME_INSTANCE_ID`
 - `LOGICAL_TIME_SOURCE`
@@ -134,11 +141,15 @@ In the current implementation, they are injected into the runtime container via 
 
 The deploy agent accepts:
 - image reference (immutable tag) (required)
-- `env` object (optional) which is passed through to Docker as `-e KEY="VALUE"` (runtime-critical)
 - environment label (`dev` / `prod`) (optional, informational only)
 
-Implementation note (current):
-- The deploy agent does not validate runtime env semantics; it passes variables through.
+Fields that MUST NOT be sent by clients (forbidden):
+- `env`
+- `container_name`
+- `volumes`
+
+Implementation note (current, enforced):
+- The deploy agent loads runtime env exclusively from server-side `runtime.env`.
 - If runtime-critical variables are missing/invalid, the runtime will fail fast on startup.
 
 ---
@@ -167,6 +178,11 @@ Why this often shows up as a restart loop:
 - The deploy agent starts the container with `--restart unless-stopped`.
 - The runtime performs strict env + persistence validation and exits with a non-zero code on any violation.
 - Docker immediately restarts the container, producing repeated crash logs until configuration is fixed or the container is removed.
+
+Phase 1.5 nuance:
+- A restart loop may also be observed when the runtime exits cleanly (exit code 0) after logging READY,
+  because the runtime is not yet a long-lived service in Phase 1.5.
+See: `docs/infra/RUNTIME_CONTAINER_LIFECYCLE.md`.
 
 ---
 

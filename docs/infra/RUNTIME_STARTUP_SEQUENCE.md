@@ -166,9 +166,17 @@ Rules:
 Only after all previous steps succeed:
 
 - runtime logs “READY”
-- runtime begins processing inputs (ticks, triggers)
 
 No side effects are allowed before this point.
+
+Phase 1.5 semantics (important):
+- “READY” indicates the runtime has completed strict validation + replay successfully.
+- Phase 1.5 does NOT guarantee a long-lived service loop.
+- A clean exit (exit code 0) after logging READY is valid and may be intentional in Phase 1.5.
+- If the container is started with Docker `--restart unless-stopped`, Docker will restart it even after a clean exit,
+  resulting in an expected restart loop.
+
+See: `docs/infra/RUNTIME_CONTAINER_LIFECYCLE.md`.
 
 ---
 
