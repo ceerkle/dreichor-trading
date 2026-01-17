@@ -44,7 +44,7 @@ High availability is out of scope.
 Hetzner Server
 ├── Docker
 │   ├── runtime container
-│   └── database container (or managed DB)
+│   └── (no database container; Postgres is a host service)
 └── Persistent Volume
     ├── audit events
     └── snapshots
@@ -79,7 +79,7 @@ CI outputs immutable artifacts.
 
 Artifacts MUST be tagged with:
 - git commit SHA
-- semantic tag (e.g. core-runtime-v1)
+- immutable version tag (e.g. `1.0.3` or `1.0.3-dev`)
 
 Tags MUST be immutable once published.
 
@@ -115,7 +115,13 @@ Rules:
 - missing config MUST fail startup
 
 The authoritative list is:
-- infra/.env.schema.md
+- `docs/infra/ENV_SCHEMA.md`
+
+Authority split (Phase 1.5+):
+- CI selects *only* image tag + target environment (dev|prod) and triggers the Deploy Agent
+- the server owns *all* runtime environment variables via server-side `runtime.env`:
+  - dev: `/opt/dreichor/dev/runtime.env`
+  - prod: `/opt/dreichor/prod/runtime.env`
 
 ---
 

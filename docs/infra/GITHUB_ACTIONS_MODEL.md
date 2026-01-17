@@ -65,9 +65,12 @@ The build workflow MUST:
 - run npm test
 - run npm run build
 - build a runtime container image
-- tag the image with:
-  - git SHA
-  - semantic tag (e.g. phase-1.5, phase-1.7)
+- publish the image to GHCR with:
+  - git SHA tag (immutable)
+  - an operator-chosen version tag (immutable; typically a git tag like `1.0.3` or `1.0.3-dev`)
+
+Triggering:
+- The build is operator-triggered (manual) and MUST NOT run automatically on push.
 
 The build workflow MUST NOT:
 - deploy
@@ -85,8 +88,8 @@ Deployment is manual and operator-triggered.
 The deployment workflow MUST:
 - require explicit environment selection (dev or prod)
 - pull a specific image tag
-- inject secrets via GitHub Secrets
-- start or restart containers remotely
+- inject required runtime env via the Deploy Agent request (current implementation)
+- trigger start/replace of the runtime container via the Deploy Agent
 
 The deployment workflow MUST NOT:
 - auto-deploy on push
@@ -99,7 +102,7 @@ The deployment workflow MUST NOT:
 
 The server is accessed via:
 - Cloudflare Tunnel
-- GitHub Action remote commands
+- HTTPS requests from GitHub Actions to the Deploy Agent API (behind Cloudflare Access)
 
 Rules:
 - no SSH login

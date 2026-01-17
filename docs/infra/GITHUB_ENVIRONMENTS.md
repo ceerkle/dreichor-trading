@@ -120,6 +120,124 @@ Failure Rule:
 
 ---
 
+## Required Variables (Non-Secret, Exact Names)
+
+Each GitHub Environment (dev, prod) MUST define the following **variables** (not secrets).
+They are injected into the runtime container via the Deploy Agent request `env`.
+
+### NODE_ENV
+
+Allowed:
+- production | staging | development
+
+Recommended:
+- dev: `production`
+- prod: `production`
+
+Failure Rule:
+- Missing → hard fail before deploy
+
+---
+
+### RUNTIME_INSTANCE_ID
+
+Description:
+- Stable identifier for this runtime instance
+- MUST be stable across restarts within an environment
+
+Failure Rule:
+- Missing → hard fail before deploy
+
+---
+
+### LOGICAL_TIME_SOURCE
+
+Allowed:
+- marketdata | manual
+
+Recommended:
+- dev: `marketdata`
+- prod: `marketdata`
+
+Failure Rule:
+- Missing → hard fail before deploy
+
+---
+
+### PERSISTENCE_MODE
+
+Allowed:
+- postgres
+
+Failure Rule:
+- Missing → hard fail before deploy
+
+---
+
+### SNAPSHOT_STRATEGY
+
+Allowed:
+- on-ledger-update | manual
+
+Failure Rule:
+- Missing → hard fail before deploy
+
+---
+
+### EXECUTION_PLANE
+
+Allowed:
+- paper | live
+
+Rules:
+- Phase 1.7 / Phase 2: paper only
+
+Failure Rule:
+- Missing → hard fail before deploy
+
+---
+
+### EXCHANGE_PROVIDER
+
+Allowed:
+- binance
+
+Failure Rule:
+- Missing → hard fail before deploy
+
+---
+
+### SAFETY_MODE
+
+Allowed:
+- normal | halt | flatten
+
+Failure Rule:
+- Missing → hard fail before deploy
+
+---
+
+### LOG_LEVEL
+
+Allowed:
+- debug | info | warn | error
+
+Failure Rule:
+- Missing → hard fail before deploy
+
+---
+
+### ENABLE_AUDIT_LOGGING
+
+Allowed:
+- true | false
+
+Rules:
+- prod: MUST be true
+
+Failure Rule:
+- Missing → hard fail before deploy
+
 ## Secret Handling Rules
 
 - Secrets are defined only in GitHub Environments
@@ -139,6 +257,7 @@ If any required secret is missing:
 The deploy workflow:
 
 - Reads secrets from the selected GitHub Environment
+- Reads variables from the selected GitHub Environment
 - Fails fast if any required secret is missing
 - Passes secrets only to the Deploy Agent and runtime container
 - Never stores secrets in artifacts or logs

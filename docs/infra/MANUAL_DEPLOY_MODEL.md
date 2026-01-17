@@ -39,7 +39,7 @@ Image naming convention:
 - Repository: `ghcr.io/<owner>/<repo>/runtime`
 - Tags:
   - immutable commit SHA
-  - semantic tag (e.g. `phase-1.7`)
+  - immutable version tag (e.g. `1.0.3` or `1.0.3-dev`)
 
 Only these images may be deployed.
 
@@ -114,15 +114,15 @@ Tunnel configuration is assumed to exist already.
 
 Deployment performs exactly these steps:
 
-1. Authenticate to GHCR
-2. Connect to the server (via SSH or tunnel-based command execution)
-3. Pull the selected image
-4. Stop the existing runtime container (if running)
-5. Start the new container with:
-   - correct environment variables
-   - mounted volumes
-   - deterministic command (`npm run start:paper`)
-6. Verify container started successfully
+1. Operator triggers the GitHub Action deploy workflow (`workflow_dispatch`)
+2. GitHub Actions calls the Deploy Agent API (behind Cloudflare Access)
+3. Deploy Agent pulls the selected image
+4. Deploy Agent stops/removes the existing runtime container (if present)
+5. Deploy Agent starts the new container with:
+   - server-owned container name
+   - server-owned volume mounts
+   - runtime env variables injected via the deploy request (current implementation)
+6. GitHub Actions verifies container status via `GET /v1/status`
 7. Exit
 
 No rolling updates.

@@ -115,7 +115,7 @@ Purpose:
 Fail fast on misconfiguration.
 
 Reference:
-- infra/.env.schema.md
+- docs/infra/ENV_SCHEMA.md
 
 Requirements:
 - Strict env validation at startup

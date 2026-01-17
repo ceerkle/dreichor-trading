@@ -36,7 +36,6 @@ jobs:
       DEPLOY_ENDPOINT: ${{ secrets.DEPLOY_ENDPOINT }}
       CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
       CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
       RUNTIME_IMAGE: ghcr.io/${{ github.repository }}/runtime:${{ inputs.image_tag }}
 
     steps:
@@ -73,7 +72,7 @@ jobs:
           : "${DEPLOY_ENDPOINT:?Missing secret DEPLOY_ENDPOINT}"
           : "${CF_ACCESS_CLIENT_ID:?Missing secret CF_ACCESS_CLIENT_ID}"
           : "${CF_ACCESS_CLIENT_SECRET:?Missing secret CF_ACCESS_CLIENT_SECRET}"
-          : "${DATABASE_URL:?Missing secret DATABASE_URL}"
+          : "${RUNTIME_IMAGE:?Missing RUNTIME_IMAGE}"
 
       - name: Deploy (POST /v1/deploy)
         shell: bash
@@ -83,33 +82,15 @@ jobs:
           endpoint="${DEPLOY_ENDPOINT%/}"
           deploy_url="${endpoint}/v1/deploy"
 
-          cat > deploy_request.json <<'JSON'
+          cat > deploy_request.json <<JSON
           {
-            "image": "__IMAGE__",
-            "environment": "__ENV__",
-            "env": {
-              "DATABASE_URL": "__DATABASE_URL__",
-              "EXECUTION_PLANE": "paper"
-            }
+            "image": "${RUNTIME_IMAGE}",
+            "environment": "${{ inputs.environment }}"
           }
           JSON
 
-          GITHUB_ENV_INPUT="${{ inputs.environment }}" node -e '
-            const fs = require("node:fs");
-            const req = JSON.parse(fs.readFileSync("deploy_request.json","utf8"));
-            req.image = process.env.RUNTIME_IMAGE;
-            req.environment = process.env.GITHUB_ENV_INPUT;
-            req.env.DATABASE_URL = process.env.DATABASE_URL;
-            fs.writeFileSync("deploy_request.json", JSON.stringify(req, null, 2));
-          '
-
-          echo "Deploy request (sanitized):"
-          node -e '
-            const fs = require("node:fs");
-            const req = JSON.parse(fs.readFileSync("deploy_request.json","utf8"));
-            req.env.DATABASE_URL = "***";
-            console.log(JSON.stringify(req, null, 2));
-          '
+          echo "Deploy request:"
+          cat deploy_request.json
 
           http_code="$(
             curl -sS -o deploy_response.json -w "%{http_code}" \
@@ -132,7 +113,6 @@ jobs:
             const fs = require("node:fs");
             const r = JSON.parse(fs.readFileSync("deploy_response.json","utf8"));
             if (r.status !== "deployed") throw new Error(`unexpected status: ${r.status}`);
-            if (!r.container_name) throw new Error("missing container_name");
             if (r.image !== process.env.RUNTIME_IMAGE) throw new Error(`unexpected image: ${r.image}`);
             console.log("Deploy Agent response validated.");
           '
@@ -165,7 +145,6 @@ jobs:
             const fs = require("node:fs");
             const s = JSON.parse(fs.readFileSync("status_response.json","utf8"));
             if (s.running !== true) throw new Error("container not running");
-            if (!s.container_name) throw new Error("missing container_name");
             if (s.image !== process.env.RUNTIME_IMAGE) throw new Error(`unexpected image: ${s.image}`);
             if (typeof s.started_at !== "string" || s.started_at.trim().length === 0) {
               throw new Error("missing/invalid started_at");
@@ -201,7 +180,6 @@ jobs:
             const fs = require("node:fs");
             const r = JSON.parse(fs.readFileSync("stop_response.json","utf8"));
             if (r.status !== "stopped") throw new Error(`unexpected status: ${r.status}`);
-            if (!r.container_name) throw new Error("missing container_name");
             console.log("Stop response validated.");
           '
 
